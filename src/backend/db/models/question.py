@@ -1,0 +1,68 @@
+from typing import List, Optional
+from sqlalchemy import String, Boolean, Integer, CheckConstraint, ForeignKey
+from sqlalchemy.orm import mapped_column, relationship, Mapped, DeclarativeBase
+
+from backend.types.question import ConceptType, ProcessType
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Image(Base):
+    __tablename__ = "image"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str] = mapped_column(String(50))
+    path: Mapped[str] = mapped_column(String(255))
+
+    sub_questions: Mapped[List["SubQuestion"]] = relationship(back_populates="image")
+
+    def __repr__(self) -> str:
+        return f"Image(id={self.id!r}, description={self.description!r}, path={self.path!r})"
+
+
+class SubQuestion(Base):
+    __tablename__ = "sub_question"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str]
+    answer: Mapped[str]
+    concept: Mapped[ConceptType] = mapped_column(Integer)
+    process: Mapped[ProcessType] = mapped_column(Integer)
+    keywords: Mapped[Optional[str]]
+    # sperated with "," e.g. "225 million years ago,one kilogram,25 grams"
+
+    image_id = mapped_column(ForeignKey("image.id"), nullable=True)
+    question_id = mapped_column(ForeignKey("question.id"))
+
+    image: Mapped[Optional["Image"]] = relationship(back_populates="sub_questions")
+    question = Mapped["Question"] = relationship(back_populates="sub_questions")
+
+    __table_args__ = (
+        CheckConstraint(
+            f"concept IN ({','.join(str(e.value) for e in ConceptType)})",
+            name="check_concept",
+        ),
+        CheckConstraint(
+            f"process IN ({','.join(str(e.value) for e in ProcessType)})",
+            name="check_process",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"SubQuestion(id={self.id!r}, concept={self.concept!r}, process={self.process!r})"
+
+
+class Question(Base):
+    __tablename__ = "question"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str]
+    is_audited: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
+
+    sub_questions: Mapped[List["SubQuestion"]] = relationship(back_populates="question")
+
+    def __repr__(self):
+        return f"Question(id={self.id!r}, source={self.source!r}, is_audited={self.is_audited!r}, is_deleted={self.is_deleted!r})"

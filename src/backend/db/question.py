@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Optional, Union
 from sqlalchemy.future import select
 from sqlalchemy.orm import sessionmaker
+from typing import Optional, Union, List
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from backend.types.question import ConceptType, ProcessType
-from backend.models.question import Base, Image, Question, QuestionSet
+from backend.db.models.question import Base, Image, SubQuestion, Question
 
 
 class QuestionManager:
@@ -24,32 +24,32 @@ class QuestionManager:
                 # session.begin().close will do session.commit() or rollback automatically
         return image
 
-    async def add_question(
+    async def add_sub_question(
         self, description: str, answer: str, concept: ConceptType, process: ProcessType
     ) -> Question:
-        question = Question(
+        sub_question = SubQuestion(
             description=description, answer=answer, concept=concept, process=process
         )
+        async with self._Session() as session:
+            async with session.begin():
+                await session.add(sub_question)
+        return sub_question
+
+    async def add_question(self, source: str) -> Question:
+        question = Question(source=source)
         async with self._Session() as session:
             async with session.begin():
                 await session.add(question)
         return question
 
-    async def add_question_set(self, source: str) -> QuestionSet:
-        question_set = QuestionSet(source=source)
+    async def set_sub_question_image(self, question_id: int, image_id: int) -> None:
         async with self._Session() as session:
-            async with session.begin():
-                await session.add(question_set)
-        return question_set
-
-    async def set_question_image(self, question_id: int, image_id: int) -> None:
-        async with self._Session() as session:
-            question_result = await session.execute(
-                select(Question).filter(Question.id == question_id)
+            sub_question_result = await session.execute(
+                select(SubQuestion).filter(SubQuestion.id == question_id)
             )
-            question = question_result.scalars().first()
+            sub_question = sub_question_result.scalars().first()
 
-            assert question is not None, f"Invalid question_id {question_id}"
+            assert sub_question is not None, f"Invalid question_id {question_id}"
 
             image_result = await session.execute(
                 select(Image).filter(Image.id == image_id)
@@ -59,10 +59,17 @@ class QuestionManager:
             assert image is not None, f"Invalid image_id {image_id}"
 
             async with session.begin():
-                question.image_id = image.id
+                sub_question.image_id = image.id
 
-    async def set_question_set(self, question_id: int, question_set_id: int) -> None:
+    async def set_question(self, sub_question_ids: List[int], question_id: int) -> None:
         async with self._Session() as session:
+            sub_question_result = await session.execute(
+                select(SubQuestion).filter(SubQuestion.id.in_(sub_question_ids))
+            )
+            sub_questions = sub_question_result.scalars().all()
+
+            assert len(sub_questions) == len(sub_question_ids), "Invalid question_id(s)"
+
             question_result = await session.execute(
                 select(Question).filter(Question.id == question_id)
             )
@@ -70,17 +77,9 @@ class QuestionManager:
 
             assert question is not None, f"Invalid question_id {question_id}"
 
-            question_set_result = await session.execute(
-                select(QuestionSet).filter(QuestionSet.id == question_set_id)
-            )
-            question_set = question_set_result.scalars().first()
-
-            assert question_set is not None, (
-                f"Invalid question_set_id {question_set_id}"
-            )
-
             async with session.begin():
-                question.question_set_id = question_set.id
+                for sub_question in sub_questions:
+                    sub_question.question_id = question.id
 
     async def get_question(self, question_id: int) -> Optional[Question]:
         async with self._Session() as session:
@@ -88,10 +87,3 @@ class QuestionManager:
                 select(Question).filter(Question.id == question_id)
             )
             return question_result.scalars().first()
-
-    async def get_question_set(self, question_set_id: int) -> Optional[QuestionSet]:
-        async with self._Session() as session:
-            question_set_result = await session.execute(
-                select(QuestionSet).filter(QuestionSet.id == question_set_id)
-            )
-            return question_set_result.scalars().first()

@@ -1,0 +1,17 @@
+from enum import Enum
+
+
+class ProcessType(Enum):
+    FORMULATE = 0
+    APPLY = 1
+    EXPLAIN = 2
+
+
+class ConceptType(Enum):
+    OPERATIONS_ON_NUMBERS = 0
+    MATHEMATICAL_RELATIONSHIPS = 1
+    SPATIAL_PROPERTIES_AND_REPRESENTATIONS = 2
+    LOCATION_AND_NAVIGATION = 3
+    MEASUREMENT = 4
+    STATISTICS_AND_DATA = 5
+    ELEMENTS_OF_CHANCE = 6

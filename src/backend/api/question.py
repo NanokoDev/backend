@@ -12,13 +12,13 @@ question_manager = QuestionManager(config.question_db_path.resolve())
 route = APIRouter(prefix="question")
 
 
-@route.get("/add/image")
+@route.get("/image/add")
 async def add_image(description: str, path: str):
     image = await question_manager.add_image(description=description, path=path)
     return JSONResponse({"image_id": image.id})
 
 
-@route.get("/add/question")
+@route.get("/question/add")
 async def add_question(question: Question):
     sub_questions: List[DBSubQuestion] = []
     for i, sub_question in enumerate(question.sub_questions):
@@ -48,7 +48,15 @@ async def add_question(question: Question):
     return JSONResponse({"question_id": question_.id})
 
 
-@route.get("/get/questions", response_model=List[Question])
+@route.get("/image/get", response_class=FileResponse)
+async def get_image(image_id: int):
+    image = await question_manager.get_image(image_id)
+    if image is None:
+        return Response("Image not found", 404)
+    return FileResponse(image.path)
+
+
+@route.get("/question/get", response_model=List[Question])
 async def get_questions(constraint: QuestionConstraint):
     # TODO: Authorisation
     if constraint.question_id is not None:
@@ -117,9 +125,19 @@ async def get_questions(constraint: QuestionConstraint):
         ]
 
 
-@route.get("/get/image", response_class=FileResponse)
-async def get_image(image_id: int):
-    image = await question_manager.get_image(image_id)
-    if image is None:
-        return Response("Image not found", 404)
-    return FileResponse(image.path)
+@route.get("/question/approve")
+async def approve_question(question_id: int):
+    result = await question_manager.approve_question(question_id=question_id)
+    if result:
+        return JSONResponse({"msg": f"Approved question {question_id} successfully"})
+    return JSONResponse(
+        {"msg": f"Question {question_id} has already been approved or deleted"}
+    )
+
+
+@route.get("/question/delete")
+async def delete_question(question_id: int):
+    result = await question_manager.delete_question(question_id=question_id)
+    if result:
+        return JSONResponse({"msg": f"Deleted question {question_id} successfully"})
+    return JSONResponse({"msg": f"Question {question_id} has already been deleted"})

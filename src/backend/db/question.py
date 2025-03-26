@@ -125,3 +125,36 @@ class QuestionManager:
         async with self._Session() as session:
             result = await session.execute(select(Image).filter(Image.id == image_id))
             return result.scalars().first()
+
+    async def approve_question(self, question_id: int) -> bool:
+        async with self._Session() as session:
+            question_result = await session.execute(
+                select(Question).filter(Question.id == question_id)
+            )
+            question = question_result.scalars().first()
+
+            assert question is not None, f"Invalid question_id {question_id}"
+
+            if question.is_audited or question.is_deleted:
+                return False
+
+            async with session.begin():
+                question.is_audited = True
+            return True
+
+    async def delete_question(self, question_id: int) -> bool:
+        async with self._Session() as session:
+            question_result = await session.execute(
+                select(Question).filter(Question.id == question_id)
+            )
+            question = question_result.scalars().first()
+
+            assert question is not None, f"Invalid question_id {question_id}"
+
+            if question.is_deleted:
+                return False
+
+            async with session.begin():
+                question.is_deleted = True
+
+            return True

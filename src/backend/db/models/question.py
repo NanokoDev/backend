@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import String, Boolean, Integer, CheckConstraint, ForeignKey
+from sqlalchemy import String, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import mapped_column, relationship, Mapped, DeclarativeBase
 
 from backend.types.question import ConceptType, ProcessType
@@ -26,10 +26,16 @@ class SubQuestion(Base):
     __tablename__ = "sub_question"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    priority: Mapped[int]
+    # be used to sort subquestions
     description: Mapped[str]
     answer: Mapped[str]
-    concept: Mapped[ConceptType] = mapped_column(Integer)
-    process: Mapped[ProcessType] = mapped_column(Integer)
+    concept: Mapped[ConceptType] = mapped_column(
+        Enum(ConceptType, create_constraint=True, native_enum=True)
+    )
+    process: Mapped[ProcessType] = mapped_column(
+        Enum(ProcessType, create_constraint=True, native_enum=True)
+    )
     keywords: Mapped[Optional[str]]
     # sperated with "," e.g. "225 million years ago,one kilogram,25 grams"
 
@@ -38,17 +44,6 @@ class SubQuestion(Base):
 
     image: Mapped[Optional["Image"]] = relationship(back_populates="sub_questions")
     question = Mapped["Question"] = relationship(back_populates="sub_questions")
-
-    __table_args__ = (
-        CheckConstraint(
-            f"concept IN ({','.join(str(e.value) for e in ConceptType)})",
-            name="check_concept",
-        ),
-        CheckConstraint(
-            f"process IN ({','.join(str(e.value) for e in ProcessType)})",
-            name="check_process",
-        ),
-    )
 
     def __repr__(self) -> str:
         return f"SubQuestion(id={self.id!r}, concept={self.concept!r}, process={self.process!r})"

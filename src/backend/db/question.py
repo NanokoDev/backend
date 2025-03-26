@@ -25,10 +25,19 @@ class QuestionManager:
         return image
 
     async def add_sub_question(
-        self, description: str, answer: str, concept: ConceptType, process: ProcessType
-    ) -> Question:
+        self,
+        seq_number: int,
+        description: str,
+        answer: str,
+        concept: ConceptType,
+        process: ProcessType,
+    ) -> SubQuestion:
         sub_question = SubQuestion(
-            description=description, answer=answer, concept=concept, process=process
+            seq_number=seq_number,
+            description=description,
+            answer=answer,
+            concept=concept,
+            process=process,
         )
         async with self._Session() as session:
             async with session.begin():
@@ -42,14 +51,16 @@ class QuestionManager:
                 await session.add(question)
         return question
 
-    async def set_sub_question_image(self, question_id: int, image_id: int) -> None:
+    async def set_sub_question_image(self, sub_question_id: int, image_id: int) -> None:
         async with self._Session() as session:
             sub_question_result = await session.execute(
-                select(SubQuestion).filter(SubQuestion.id == question_id)
+                select(SubQuestion).filter(SubQuestion.id == sub_question_id)
             )
             sub_question = sub_question_result.scalars().first()
 
-            assert sub_question is not None, f"Invalid question_id {question_id}"
+            assert sub_question is not None, (
+                f"Invalid sub_question_id {sub_question_id}"
+            )
 
             image_result = await session.execute(
                 select(Image).filter(Image.id == image_id)
@@ -87,3 +98,30 @@ class QuestionManager:
                 select(Question).filter(Question.id == question_id)
             )
             return question_result.scalars().first()
+
+    async def get_question_by_values(
+        self,
+        source: Optional[str],
+        concept: Optional[ConceptType],
+        process: Optional[ProcessType],
+    ) -> List[Question]:
+        async with self._Session() as session:
+            filters = []
+            if source is not None:
+                filters.append(Question.source == source)
+            if concept is not None:
+                filters.append(
+                    Question.sub_questions.any(SubQuestion.concept == concept)
+                )
+            if process is not None:
+                filters.append(
+                    Question.sub_questions.any(SubQuestion.process == process)
+                )
+
+            question_result = await session.execute(select(Question).filter(*filters))
+            return question_result.scalars().all()
+
+    async def get_image(self, image_id: int) -> Optional[Image]:
+        async with self._Session() as session:
+            result = await session.execute(select(Image).filter(Image.id == image_id))
+            return result.scalars().first()

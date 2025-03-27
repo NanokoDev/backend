@@ -1,5 +1,6 @@
 from typing import List
-from fastapi import APIRouter
+from fastapi import APIRouter, FastAPI
+from contextlib import asynccontextmanager
 from fastapi.responses import JSONResponse, FileResponse, Response
 
 from backend.config import config
@@ -8,8 +9,17 @@ from backend.db.models.question import SubQuestion as DBSubQuestion
 from backend.api.models.question import Question, SubQuestion, QuestionConstraint
 
 
-question_manager = QuestionManager(config.question_db_path.resolve())
-router = APIRouter(prefix="question")
+question_manager = QuestionManager(config.question_db_path.resolve().as_posix())
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await question_manager.init()
+    yield
+    await question_manager.close()
+
+
+router = APIRouter(prefix="/question", lifespan=lifespan)
 
 
 @router.get("/image/add")

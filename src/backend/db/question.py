@@ -10,11 +10,18 @@ from backend.db.models.question import Base, Image, SubQuestion, Question
 
 class QuestionManager:
     def __init__(self, path: Optional[str] = ":memory:"):
-        self._engine = create_async_engine(f"sqlite:///{path}")
-        Base.metadata.create_all(self._engine)
+        self._engine = create_async_engine(f"sqlite+aiosqlite:///{path}")
         self._Session: sessionmaker[AsyncSession] = sessionmaker(
             bind=self._engine, class_=AsyncSession, expire_on_commit=False
         )
+
+    async def init(self) -> None:
+        async with self._engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+
+    async def close(self) -> None:
+        self._Session.close_all()
 
     async def add_image(self, description: str, path: Union[str, Path]) -> Image:
         image = Image(description=description, path=path)

@@ -43,7 +43,7 @@ class SubQuestion(Base):
     question_id = mapped_column(ForeignKey("question.id"))
 
     image: Mapped[Optional["Image"]] = relationship(back_populates="sub_questions")
-    question = Mapped["Question"] = relationship(back_populates="sub_questions")
+    question: Mapped["Question"] = relationship(back_populates="sub_questions")
 
     def __repr__(self) -> str:
         return f"SubQuestion(id={self.id!r}, concept={self.concept!r}, process={self.process!r})"

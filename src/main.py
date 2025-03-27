@@ -15,7 +15,7 @@ def load_config() -> Config:
 
 
 def main(config: Config):
-    config.question_db_path.parent.mkdir(exist_ok=True)
+    config.bank_db_path.parent.mkdir(exist_ok=True)
 
     app = FastAPI()
     app.include_router(router, prefix="/api")

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from backend.api.question import router as question_router
+from backend.api.bank import router as bank_router
 
 
 router = APIRouter(prefix="/v1")
-router.include_router(question_router)
+router.include_router(bank_router)

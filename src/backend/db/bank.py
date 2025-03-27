@@ -5,7 +5,7 @@ from typing import Optional, Union, List
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from backend.types.question import ConceptType, ProcessType
-from backend.db.models.question import Base, Image, SubQuestion, Question
+from backend.db.models.bank import Base, Image, SubQuestion, Question
 
 
 class QuestionManager:

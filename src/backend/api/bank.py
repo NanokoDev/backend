@@ -4,12 +4,12 @@ from contextlib import asynccontextmanager
 from fastapi.responses import JSONResponse, FileResponse, Response
 
 from backend.config import config
-from backend.db.question import QuestionManager
-from backend.db.models.question import SubQuestion as DBSubQuestion
+from backend.db.bank import QuestionManager
+from backend.db.models.bank import SubQuestion as DBSubQuestion
 from backend.api.models.question import Question, SubQuestion, QuestionConstraint
 
 
-question_manager = QuestionManager(config.question_db_path.resolve().as_posix())
+question_manager = QuestionManager(config.bank_db_path.resolve().as_posix())
 
 
 @asynccontextmanager
@@ -19,13 +19,21 @@ async def lifespan(_: FastAPI):
     await question_manager.close()
 
 
-router = APIRouter(prefix="/question", lifespan=lifespan)
+router = APIRouter(prefix="/bank", lifespan=lifespan)
 
 
 @router.get("/image/add")
 async def add_image(description: str, path: str):
     image = await question_manager.add_image(description=description, path=path)
     return JSONResponse({"image_id": image.id})
+
+
+@router.get("/image/get", response_class=FileResponse)
+async def get_image(image_id: int):
+    image = await question_manager.get_image(image_id)
+    if image is None:
+        return Response("Image not found", 404)
+    return FileResponse(image.path)
 
 
 @router.get("/question/add")
@@ -56,14 +64,6 @@ async def add_question(question: Question):
             )
 
     return JSONResponse({"question_id": question_.id})
-
-
-@router.get("/image/get", response_class=FileResponse)
-async def get_image(image_id: int):
-    image = await question_manager.get_image(image_id)
-    if image is None:
-        return Response("Image not found", 404)
-    return FileResponse(image.path)
 
 
 @router.get("/question/get", response_model=List[Question])

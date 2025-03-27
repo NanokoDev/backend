@@ -9,16 +9,16 @@ from backend.api.models.question import Question, SubQuestion, QuestionConstrain
 
 
 question_manager = QuestionManager(config.question_db_path.resolve())
-route = APIRouter(prefix="question")
+router = APIRouter(prefix="question")
 
 
-@route.get("/image/add")
+@router.get("/image/add")
 async def add_image(description: str, path: str):
     image = await question_manager.add_image(description=description, path=path)
     return JSONResponse({"image_id": image.id})
 
 
-@route.get("/question/add")
+@router.get("/question/add")
 async def add_question(question: Question):
     sub_questions: List[DBSubQuestion] = []
     for i, sub_question in enumerate(question.sub_questions):
@@ -48,7 +48,7 @@ async def add_question(question: Question):
     return JSONResponse({"question_id": question_.id})
 
 
-@route.get("/image/get", response_class=FileResponse)
+@router.get("/image/get", response_class=FileResponse)
 async def get_image(image_id: int):
     image = await question_manager.get_image(image_id)
     if image is None:
@@ -56,7 +56,7 @@ async def get_image(image_id: int):
     return FileResponse(image.path)
 
 
-@route.get("/question/get", response_model=List[Question])
+@router.get("/question/get", response_model=List[Question])
 async def get_questions(constraint: QuestionConstraint):
     # TODO: Authorisation
     if constraint.question_id is not None:
@@ -125,7 +125,7 @@ async def get_questions(constraint: QuestionConstraint):
         ]
 
 
-@route.get("/question/approve")
+@router.get("/question/approve")
 async def approve_question(question_id: int):
     result = await question_manager.approve_question(question_id=question_id)
     if result:
@@ -135,7 +135,7 @@ async def approve_question(question_id: int):
     )
 
 
-@route.get("/question/delete")
+@router.get("/question/delete")
 async def delete_question(question_id: int):
     result = await question_manager.delete_question(question_id=question_id)
     if result:

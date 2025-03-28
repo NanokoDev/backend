@@ -42,7 +42,9 @@ async def upload_image(file: UploadFile):
     image_path = (
         config.image_store_path / f"{hash_str}.{file.content_type.split('/')[-1]}"
     )
-    image_path.write_bytes(file.read())
+    with open(image_path, "wb") as f:
+        await file.seek(0)
+        f.write(await file.read())
     return JSONResponse({"hash": hash_str})
 
 

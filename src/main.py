@@ -15,9 +15,9 @@ def get_app():
 
 def main(config: Config):
     if config.bank_db_path is not None:
-        config.bank_db_path.parent.mkdir(exist_ok=True)
+        config.bank_db_path.parent.mkdir(exist_ok=True, parents=True)
     if config.image_store_path is not None:
-        config.image_store_path.mkdir(exist_ok=True)
+        config.image_store_path.mkdir(exist_ok=True, parents=True)
     app = get_app()
     uvicorn.run(app, host=config.host, port=config.port)
 

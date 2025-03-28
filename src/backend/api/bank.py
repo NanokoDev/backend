@@ -1,15 +1,20 @@
 from typing import List
-from fastapi import APIRouter, FastAPI
 from contextlib import asynccontextmanager
+from fastapi import APIRouter, FastAPI, UploadFile
 from fastapi.responses import JSONResponse, FileResponse, Response
 
 from backend.config import config
+from backend.utils import calculate_hash
 from backend.db.bank import QuestionManager
 from backend.db.models.bank import SubQuestion as DBSubQuestion
 from backend.api.models.question import Question, SubQuestion, QuestionConstraint
 
 
-question_manager = QuestionManager(config.bank_db_path.resolve().as_posix())
+question_manager = QuestionManager(
+    config.bank_db_path.resolve().as_posix()
+    if config.bank_db_path is not None
+    else None
+)
 
 
 @asynccontextmanager
@@ -22,9 +27,34 @@ async def lifespan(_: FastAPI):
 router = APIRouter(prefix="/bank", lifespan=lifespan)
 
 
-@router.get("/image/add")
-async def add_image(description: str, path: str):
-    image = await question_manager.add_image(description=description, path=path)
+@router.post("/image/upload")
+async def upload_image(file: UploadFile):
+    hash_str = await calculate_hash(file)
+    if file.content_type not in {"image/jpeg", "image/png"}:
+        return JSONResponse(
+            {
+                "msg": f"Unsupported content_type: {file.content_type}! Please upload a JPEG or PNG"
+            },
+            400,
+        )
+    if config.image_store_path is None:
+        return JSONResponse({"msg": "No image_store_path configured!"}, 500)
+    image_path = (
+        config.image_store_path / f"{hash_str}.{file.content_type.split('/')[-1]}"
+    )
+    image_path.write_bytes(file.read())
+    return JSONResponse({"hash": hash_str})
+
+
+@router.post("/image/add")
+async def add_image(description: str, hash: str):
+    if config.image_store_path is None:
+        return JSONResponse({"msg": "No image_store_path configured!"}, 500)
+
+    images = list(config.image_store_path.glob(f"{hash}.*"))
+    if not images:
+        return JSONResponse({"msg": f"No image with hash {hash} found!"})
+    image = await question_manager.add_image(description=description, path=images[0])
     return JSONResponse({"image_id": image.id})
 
 
@@ -36,7 +66,7 @@ async def get_image(image_id: int):
     return FileResponse(image.path)
 
 
-@router.get("/question/add")
+@router.post("/question/add")
 async def add_question(question: Question):
     sub_questions: List[DBSubQuestion] = []
     for i, sub_question in enumerate(question.sub_questions):
@@ -145,7 +175,7 @@ async def approve_question(question_id: int):
     )
 
 
-@router.get("/question/delete")
+@router.delete("/question/delete")
 async def delete_question(question_id: int):
     result = await question_manager.delete_question(question_id=question_id)
     if result:

@@ -1,7 +1,7 @@
 from typing import List
 from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, UploadFile
-from fastapi.responses import JSONResponse, FileResponse, Response
+from fastapi.responses import JSONResponse, FileResponse
 
 from backend.config import config
 from backend.utils import calculate_hash
@@ -53,7 +53,7 @@ async def add_image(description: str, hash: str):
 
     images = list(config.image_store_path.glob(f"{hash}.*"))
     if not images:
-        return JSONResponse({"msg": f"No image with hash {hash} found!"})
+        return JSONResponse({"msg": f"No image with hash {hash} found!"}, 500)
     image = await question_manager.add_image(description=description, path=images[0])
     return JSONResponse({"image_id": image.id})
 
@@ -62,7 +62,7 @@ async def add_image(description: str, hash: str):
 async def get_image(image_id: int):
     image = await question_manager.get_image(image_id)
     if image is None:
-        return Response("Image not found", 404)
+        return JSONResponse({"msg": "Image not found"}, 404)
     return FileResponse(image.path)
 
 

@@ -24,7 +24,7 @@ class QuestionManager:
         self._Session.close_all()
 
     async def add_image(self, description: str, path: Union[str, Path]) -> Image:
-        image = Image(description=description, path=path)
+        image = Image(description=description, path=str(path))
         async with self._Session() as session:
             async with session.begin():
                 session.add(image)
@@ -52,7 +52,7 @@ class QuestionManager:
         return sub_question
 
     async def add_question(self, source: str) -> Question:
-        question = Question(source=source)
+        question = Question(source=source, is_audited=False, is_deleted=False)
         async with self._Session() as session:
             async with session.begin():
                 session.add(question)
@@ -60,42 +60,44 @@ class QuestionManager:
 
     async def set_sub_question_image(self, sub_question_id: int, image_id: int) -> None:
         async with self._Session() as session:
-            sub_question_result = await session.execute(
-                select(SubQuestion).filter(SubQuestion.id == sub_question_id)
-            )
-            sub_question = sub_question_result.scalars().first()
-
-            assert sub_question is not None, (
-                f"Invalid sub_question_id {sub_question_id}"
-            )
-
-            image_result = await session.execute(
-                select(Image).filter(Image.id == image_id)
-            )
-            image = image_result.scalars().first()
-
-            assert image is not None, f"Invalid image_id {image_id}"
-
             async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                assert sub_question is not None, (
+                    f"Invalid sub_question_id {sub_question_id}"
+                )
+
+                image_result = await session.execute(
+                    select(Image).filter(Image.id == image_id)
+                )
+                image = image_result.scalars().first()
+
+                assert image is not None, f"Invalid image_id {image_id}"
+
                 sub_question.image_id = image.id
 
     async def set_question(self, sub_question_ids: List[int], question_id: int) -> None:
         async with self._Session() as session:
-            sub_question_result = await session.execute(
-                select(SubQuestion).filter(SubQuestion.id.in_(sub_question_ids))
-            )
-            sub_questions = sub_question_result.scalars().all()
-
-            assert len(sub_questions) == len(sub_question_ids), "Invalid question_id(s)"
-
-            question_result = await session.execute(
-                select(Question).filter(Question.id == question_id)
-            )
-            question = question_result.scalars().first()
-
-            assert question is not None, f"Invalid question_id {question_id}"
-
             async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id.in_(sub_question_ids))
+                )
+                sub_questions = sub_question_result.scalars().all()
+
+                assert len(sub_questions) == len(sub_question_ids), (
+                    "Invalid question_id(s)"
+                )
+
+                question_result = await session.execute(
+                    select(Question).filter(Question.id == question_id)
+                )
+                question = question_result.scalars().first()
+
+                assert question is not None, f"Invalid question_id {question_id}"
+
                 for sub_question in sub_questions:
                     sub_question.question_id = question.id
 
@@ -135,33 +137,33 @@ class QuestionManager:
 
     async def approve_question(self, question_id: int) -> bool:
         async with self._Session() as session:
-            question_result = await session.execute(
-                select(Question).filter(Question.id == question_id)
-            )
-            question = question_result.scalars().first()
-
-            assert question is not None, f"Invalid question_id {question_id}"
-
-            if question.is_audited or question.is_deleted:
-                return False
-
             async with session.begin():
+                question_result = await session.execute(
+                    select(Question).filter(Question.id == question_id)
+                )
+                question = question_result.scalars().first()
+
+                assert question is not None, f"Invalid question_id {question_id}"
+
+                if question.is_audited or question.is_deleted:
+                    return False
+
                 question.is_audited = True
             return True
 
     async def delete_question(self, question_id: int) -> bool:
         async with self._Session() as session:
-            question_result = await session.execute(
-                select(Question).filter(Question.id == question_id)
-            )
-            question = question_result.scalars().first()
-
-            assert question is not None, f"Invalid question_id {question_id}"
-
-            if question.is_deleted:
-                return False
-
             async with session.begin():
+                question_result = await session.execute(
+                    select(Question).filter(Question.id == question_id)
+                )
+                question = question_result.scalars().first()
+
+                assert question is not None, f"Invalid question_id {question_id}"
+
+                if question.is_deleted:
+                    return False
+
                 question.is_deleted = True
 
             return True

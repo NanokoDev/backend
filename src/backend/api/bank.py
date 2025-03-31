@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, UploadFile, Body
 from fastapi.responses import JSONResponse, FileResponse
@@ -6,8 +6,9 @@ from fastapi.responses import JSONResponse, FileResponse
 from backend.config import config
 from backend.utils import calculate_hash
 from backend.db.bank import QuestionManager
+from backend.types.question import ConceptType, ProcessType
+from backend.api.models.question import Question, SubQuestion
 from backend.db.models.bank import SubQuestion as DBSubQuestion
-from backend.api.models.question import Question, SubQuestion, QuestionConstraint
 
 
 question_manager = QuestionManager(
@@ -99,10 +100,15 @@ async def add_question(question: Question):
 
 
 @router.get("/question/get", response_model=List[Question])
-async def get_questions(constraint: QuestionConstraint):
+async def get_questions(
+    question_id: Optional[str] = None,
+    source: Optional[str] = None,
+    concept: Optional[ConceptType] = None,
+    process: Optional[ProcessType] = None,
+):
     # TODO: Authorisation
-    if constraint.question_id is not None:
-        question = await question_manager.get_question(constraint.question_id)
+    if question_id is not None:
+        question = await question_manager.get_question(question_id)
         if question is None:
             return []
 
@@ -132,9 +138,9 @@ async def get_questions(constraint: QuestionConstraint):
             return []
     else:
         questions = await question_manager.get_question_by_values(
-            source=constraint.source,
-            concept=constraint.concept,
-            process=constraint.process,
+            source=source,
+            concept=concept,
+            process=process,
         )
         questions_ = [
             Question(

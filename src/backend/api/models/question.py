@@ -5,25 +5,18 @@ from backend.types.question import ConceptType, ProcessType
 
 
 class SubQuestion(BaseModel):
-    id: Optional[int]
+    id: Optional[int] = None
     description: str
     answer: str
     concept: ConceptType
     process: ProcessType
-    keywords: Optional[List[str]]
-    image_id: Optional[int]
+    keywords: Optional[List[str]] = None
+    image_id: Optional[int] = None
 
 
 class Question(BaseModel):
-    id: Optional[int]
+    id: Optional[int] = None
     source: str
-    is_audited: bool
-    is_deleted: bool
+    is_audited: Optional[bool] = None
+    is_deleted: Optional[bool] = None
     sub_questions: List[SubQuestion]
-
-
-class QuestionConstraint(BaseModel):
-    question_id: Optional[str]
-    source: Optional[str]
-    concept: Optional[ConceptType]
-    process: Optional[ProcessType]

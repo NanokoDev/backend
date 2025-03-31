@@ -26,7 +26,7 @@ class SubQuestion(Base):
     __tablename__ = "sub_question"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    priority: Mapped[int]
+    seq_number: Mapped[int]
     # be used to sort subquestions
     description: Mapped[str]
     answer: Mapped[str]

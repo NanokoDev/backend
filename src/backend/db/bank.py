@@ -27,7 +27,7 @@ class QuestionManager:
         image = Image(description=description, path=path)
         async with self._Session() as session:
             async with session.begin():
-                await session.add(image)
+                session.add(image)
                 # session.begin().close will do session.commit() or rollback automatically
         return image
 
@@ -48,14 +48,14 @@ class QuestionManager:
         )
         async with self._Session() as session:
             async with session.begin():
-                await session.add(sub_question)
+                session.add(sub_question)
         return sub_question
 
     async def add_question(self, source: str) -> Question:
         question = Question(source=source)
         async with self._Session() as session:
             async with session.begin():
-                await session.add(question)
+                session.add(question)
         return question
 
     async def set_sub_question_image(self, sub_question_id: int, image_id: int) -> None:

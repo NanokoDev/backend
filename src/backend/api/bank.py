@@ -1,6 +1,6 @@
 from typing import List
 from contextlib import asynccontextmanager
-from fastapi import APIRouter, FastAPI, UploadFile
+from fastapi import APIRouter, FastAPI, UploadFile, Body
 from fastapi.responses import JSONResponse, FileResponse
 
 from backend.config import config
@@ -49,7 +49,7 @@ async def upload_image(file: UploadFile):
 
 
 @router.post("/image/add")
-async def add_image(description: str, hash: str):
+async def add_image(description: str = Body(...), hash: str = Body(...)):
     if config.image_store_path is None:
         return JSONResponse({"msg": "No image_store_path configured!"}, 500)
 

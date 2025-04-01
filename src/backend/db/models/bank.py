@@ -10,6 +10,8 @@ class Base(DeclarativeBase):
 
 
 class Image(Base):
+    """Image model for the question bank"""
+
     __tablename__ = "image"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -23,6 +25,8 @@ class Image(Base):
 
 
 class SubQuestion(Base):
+    """SubQuestion model for the question bank"""
+
     __tablename__ = "sub_question"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -50,6 +54,8 @@ class SubQuestion(Base):
 
 
 class Question(Base):
+    """Question model for the question bank"""
+
     __tablename__ = "question"
 
     id: Mapped[int] = mapped_column(primary_key=True)

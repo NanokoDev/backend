@@ -2,12 +2,16 @@ from enum import Enum
 
 
 class ProcessType(Enum):
+    """Process enum for the process of subquestions"""
+
     FORMULATE = 0
     APPLY = 1
     EXPLAIN = 2
 
 
 class ConceptType(Enum):
+    """Concept enum for the concept of subquestions"""
+
     OPERATIONS_ON_NUMBERS = 0
     MATHEMATICAL_RELATIONSHIPS = 1
     SPATIAL_PROPERTIES_AND_REPRESENTATIONS = 2

@@ -5,6 +5,8 @@ from backend.types.question import ConceptType, ProcessType
 
 
 class SubQuestion(BaseModel):
+    """API model for subquestion"""
+
     id: Optional[int] = None
     description: str
     answer: str
@@ -15,6 +17,8 @@ class SubQuestion(BaseModel):
 
 
 class Question(BaseModel):
+    """API model for question"""
+
     id: Optional[int] = None
     source: str
     is_audited: Optional[bool] = None

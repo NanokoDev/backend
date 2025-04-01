@@ -8,12 +8,22 @@ from backend.utils import load_config
 
 
 def get_app():
+    """Get the FastAPI app instance
+
+    Returns:
+        FastAPI: The FastAPI app instance
+    """
     app = FastAPI()
     app.include_router(router, prefix="/api")
     return app
 
 
 def main(config: Config):
+    """Run the FastAPI app
+
+    Args:
+        config (Config): The configuration object
+    """
     if config.bank_db_path is not None:
         config.bank_db_path.parent.mkdir(exist_ok=True, parents=True)
     if config.image_store_path is not None:

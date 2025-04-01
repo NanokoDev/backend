@@ -6,8 +6,8 @@ from fastapi.responses import JSONResponse, FileResponse
 from backend.config import config
 from backend.utils import calculate_hash
 from backend.db.bank import QuestionManager
+from backend.api.models.bank import Question, SubQuestion
 from backend.types.question import ConceptType, ProcessType
-from backend.api.models.question import Question, SubQuestion
 from backend.db.models.bank import SubQuestion as DBSubQuestion
 from backend.exceptions.bank import (
     ImageIdInvalid,
@@ -19,7 +19,7 @@ from backend.exceptions.bank import (
 question_manager = QuestionManager(
     config.bank_db_path.resolve().as_posix()
     if config.bank_db_path is not None
-    else None
+    else ":memory:"
 )
 
 

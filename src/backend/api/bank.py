@@ -1,7 +1,7 @@
 from typing import List, Optional
 from contextlib import asynccontextmanager
-from fastapi import APIRouter, FastAPI, UploadFile, Body
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi import APIRouter, FastAPI, UploadFile, Body, HTTPException
 
 from backend.config import config
 from backend.utils import calculate_hash
@@ -25,6 +25,10 @@ question_manager = QuestionManager(
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Lifespan context manager for bank API
+
+    used to initialize and close the QuestionManager
+    """
     await question_manager.init()
     yield
     await question_manager.close()
@@ -35,16 +39,26 @@ router = APIRouter(prefix="/bank", lifespan=lifespan)
 
 @router.post("/image/upload")
 async def upload_image(file: UploadFile):
+    """Upload an image to the server and return its hash
+
+    Args:
+        file (UploadFile): the image file to upload
+
+    Raises:
+        HTTPException: unsupported content type (not JPEG or PNG)
+        HTTPException: image_store_path not configured
+
+    Returns:
+        JSONResponse: the hash of the uploaded image
+    """
     hash_str = await calculate_hash(file)
     if file.content_type not in {"image/jpeg", "image/png"}:
-        return JSONResponse(
-            {
-                "msg": f"Unsupported content_type: {file.content_type}! Please upload a JPEG or PNG"
-            },
-            400,
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported content_type: {file.content_type}! Please upload a JPEG or PNG",
         )
     if config.image_store_path is None:
-        return JSONResponse({"msg": "No image_store_path configured!"}, 500)
+        raise HTTPException(status_code=500, detail="No image_store_path configured!")
     image_path = (
         config.image_store_path / f"{hash_str}.{file.content_type.split('/')[-1]}"
     )
@@ -56,31 +70,76 @@ async def upload_image(file: UploadFile):
 
 @router.post("/image/add")
 async def add_image(description: str = Body(...), hash: str = Body(...)):
+    """Add an image to the database
+
+    Args:
+        description (str, optional): The description of the image
+        hash (str, optional): The hash of the image
+
+    Raises:
+        HTTPException: No image_store_path configured
+        HTTPException: No image with hash found
+        HTTPException: Failed to add image
+
+    Returns:
+        JSONResponse: The id of the image in the database
+    """
     if config.image_store_path is None:
-        return JSONResponse({"msg": "No image_store_path configured!"}, 500)
+        raise HTTPException(status_code=500, detail="No image_store_path configured!")
 
     images = list(config.image_store_path.glob(f"{hash}.*"))
     if not images:
-        return JSONResponse({"msg": f"No image with hash {hash} found!"}, 500)
+        raise HTTPException(
+            status_code=404,
+            detail=f"No image with hash {hash} found!",
+        )
     try:
         image = await question_manager.add_image(
             description=description, path=images[0]
         )
-    except ImageIdInvalid as e:
-        return JSONResponse({"msg": str(e)}, status_code=404)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to add image with hash {hash}: {e}",
+        ) from e
     return JSONResponse({"image_id": image.id})
 
 
 @router.get("/image/get", response_class=FileResponse)
 async def get_image(image_id: int):
+    """Get an image from the database
+
+    Args:
+        image_id (int): The id of the image to get
+
+    Raises:
+        HTTPException: No image with id found
+
+    Returns:
+        FileResponse: The image file
+    """
     image = await question_manager.get_image(image_id)
     if image is None:
-        return JSONResponse({"msg": "Image not found"}, 404)
+        raise HTTPException(
+            status_code=404,
+            detail=f"No image with id {image_id} found!",
+        )
     return FileResponse(image.path)
 
 
 @router.post("/question/add")
 async def add_question(question: Question):
+    """Add a question to the database
+
+    Args:
+        question (Question): The question to add
+
+    Raises:
+        HTTPException: Failed to set question
+
+    Returns:
+        JSONResponse: The id of the question in the database
+    """
     sub_questions: List[DBSubQuestion] = []
     for i, sub_question in enumerate(question.sub_questions):
         sub_questions.append(
@@ -106,7 +165,10 @@ async def add_question(question: Question):
                     image_id=question.sub_questions[i].image_id,
                 )
     except (SubQuestionIdInvalid, QuestionIdInvalid, ImageIdInvalid) as e:
-        return JSONResponse({"msg": str(e)}, status_code=404)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to set question: {e}",
+        ) from e
 
     return JSONResponse({"question_id": question_.id})
 
@@ -118,10 +180,31 @@ async def get_questions(
     concept: Optional[ConceptType] = None,
     process: Optional[ProcessType] = None,
 ):
+    """Get questions from the database
+
+    Args:
+        question_id (Optional[int], optional): The question id of the question. Defaults to None.
+        source (Optional[str], optional): The source of the question. Defaults to None.
+        concept (Optional[ConceptType], optional): The concept of questions. Defaults to None.
+        process (Optional[ProcessType], optional): The process of questions. Defaults to None.
+
+    Raises:
+        HTTPException: question_id is not an integer
+        HTTPException: source is not a string
+
+    Returns:
+        List[Question]: The list of questions
+    """
     if question_id is not None and not isinstance(question_id, int):
-        return JSONResponse({"msg": "question_id should be an integer!"}, 422)
+        raise HTTPException(
+            status_code=422,
+            detail="question_id should be an integer!",
+        )
     if source is not None and not isinstance(source, str):
-        return JSONResponse({"msg": "source should be an integer!"}, 422)
+        raise HTTPException(
+            status_code=422,
+            detail="source should be a string!",
+        )
 
     # TODO: Authorisation
     if question_id is not None:
@@ -192,13 +275,31 @@ async def get_questions(
 
 @router.get("/question/approve")
 async def approve_question(question_id: int):
+    """Approve a question in the database
+
+    Args:
+        question_id (int): The question id of the question to approve
+
+    Raises:
+        HTTPException: question_id is not an integer
+        HTTPException: question_id is invalid
+
+    Returns:
+        JSONResponse: The result of the approval
+    """
     if question_id is not None and not isinstance(question_id, int):
-        return JSONResponse({"msg": "question_id should be an integer!"}, 422)
+        raise HTTPException(
+            status_code=422,
+            detail="question_id should be an integer!",
+        )
 
     try:
         result = await question_manager.approve_question(question_id=question_id)
     except QuestionIdInvalid as e:
-        return JSONResponse({"msg": str(e)})
+        raise HTTPException(
+            status_code=422,
+            detail=str(e),
+        ) from e
 
     if result:
         return JSONResponse({"msg": f"Approved question {question_id} successfully"})
@@ -209,13 +310,31 @@ async def approve_question(question_id: int):
 
 @router.delete("/question/delete")
 async def delete_question(question_id: int):
+    """Delete a question in the database
+
+    Args:
+        question_id (int): The question id of the question to delete
+
+    Raises:
+        HTTPException: question_id is not an integer
+        HTTPException: question_id is invalid
+
+    Returns:
+        JSONResponse: The result of the deletion
+    """
     if question_id is not None and not isinstance(question_id, int):
-        return JSONResponse({"msg": "question_id should be an integer!"}, 422)
+        raise HTTPException(
+            status_code=422,
+            detail="question_id should be an integer!",
+        )
 
     try:
         result = await question_manager.delete_question(question_id=question_id)
     except QuestionIdInvalid as e:
-        return JSONResponse({"msg": str(e)})
+        raise HTTPException(
+            status_code=422,
+            detail=str(e),
+        )
 
     if result:
         return JSONResponse({"msg": f"Deleted question {question_id} successfully"})

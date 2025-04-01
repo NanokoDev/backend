@@ -1,5 +1,6 @@
 from pathlib import Path
 from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import sessionmaker
 from typing import Optional, Union, List
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -111,9 +112,13 @@ class QuestionManager:
     async def get_question(self, question_id: int) -> Optional[Question]:
         async with self._Session() as session:
             question_result = await session.execute(
-                select(Question).filter(Question.id == question_id)
+                select(Question)
+                .options(joinedload(Question.sub_questions))
+                # eager load sub_questions to prevent sqlalchemy.orm.exc.DetachedInstanceError
+                .filter(Question.id == question_id)
             )
-            return question_result.scalars().first()
+            question = question_result.scalars().first()
+            return question
 
     async def get_question_by_values(
         self,

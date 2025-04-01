@@ -6,6 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from backend.types.question import ConceptType, ProcessType
 from backend.db.models.bank import Base, Image, SubQuestion, Question
+from backend.exceptions.bank import (
+    ImageIdInvalid,
+    QuestionIdInvalid,
+    SubQuestionIdInvalid,
+)
 
 
 class QuestionManager:
@@ -66,16 +71,16 @@ class QuestionManager:
                 )
                 sub_question = sub_question_result.scalars().first()
 
-                assert sub_question is not None, (
-                    f"Invalid sub_question_id {sub_question_id}"
-                )
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
 
                 image_result = await session.execute(
                     select(Image).filter(Image.id == image_id)
                 )
                 image = image_result.scalars().first()
 
-                assert image is not None, f"Invalid image_id {image_id}"
+                if image is None:
+                    raise ImageIdInvalid(image_id)
 
                 sub_question.image_id = image.id
 
@@ -87,16 +92,18 @@ class QuestionManager:
                 )
                 sub_questions = sub_question_result.scalars().all()
 
-                assert len(sub_questions) == len(sub_question_ids), (
-                    "Invalid question_id(s)"
-                )
+                if len(sub_questions) != len(sub_question_ids):
+                    for i in range(len(sub_questions)):
+                        if sub_questions[i].id != sub_question_ids[i]:
+                            raise SubQuestionIdInvalid(sub_question_ids[i])
 
                 question_result = await session.execute(
                     select(Question).filter(Question.id == question_id)
                 )
                 question = question_result.scalars().first()
 
-                assert question is not None, f"Invalid question_id {question_id}"
+                if question is None:
+                    raise QuestionIdInvalid(question_id)
 
                 for sub_question in sub_questions:
                     sub_question.question_id = question.id
@@ -143,7 +150,8 @@ class QuestionManager:
                 )
                 question = question_result.scalars().first()
 
-                assert question is not None, f"Invalid question_id {question_id}"
+                if question is None:
+                    raise QuestionIdInvalid(question_id)
 
                 if question.is_audited or question.is_deleted:
                     return False
@@ -159,7 +167,8 @@ class QuestionManager:
                 )
                 question = question_result.scalars().first()
 
-                assert question is not None, f"Invalid question_id {question_id}"
+                if question is None:
+                    raise QuestionIdInvalid(question_id)
 
                 if question.is_deleted:
                     return False

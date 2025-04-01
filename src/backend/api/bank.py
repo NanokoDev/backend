@@ -9,6 +9,11 @@ from backend.db.bank import QuestionManager
 from backend.types.question import ConceptType, ProcessType
 from backend.api.models.question import Question, SubQuestion
 from backend.db.models.bank import SubQuestion as DBSubQuestion
+from backend.exceptions.bank import (
+    ImageIdInvalid,
+    QuestionIdInvalid,
+    SubQuestionIdInvalid,
+)
 
 
 question_manager = QuestionManager(
@@ -57,7 +62,12 @@ async def add_image(description: str = Body(...), hash: str = Body(...)):
     images = list(config.image_store_path.glob(f"{hash}.*"))
     if not images:
         return JSONResponse({"msg": f"No image with hash {hash} found!"}, 500)
-    image = await question_manager.add_image(description=description, path=images[0])
+    try:
+        image = await question_manager.add_image(
+            description=description, path=images[0]
+        )
+    except ImageIdInvalid as e:
+        return JSONResponse({"msg": str(e)}, status_code=404)
     return JSONResponse({"image_id": image.id})
 
 
@@ -85,16 +95,18 @@ async def add_question(question: Question):
 
     question_ = await question_manager.add_question(question.source)
 
-    await question_manager.set_question(
-        [sub_question.id for sub_question in sub_questions], question_.id
-    )
-
-    for i, sub_question in enumerate(sub_questions):
-        if question.sub_questions[i].image_id is not None:
-            await question_manager.set_sub_question_image(
-                sub_question_id=sub_question.id,
-                image_id=question.sub_questions[i].image_id,
-            )
+    try:
+        await question_manager.set_question(
+            [sub_question.id for sub_question in sub_questions], question_.id
+        )
+        for i, sub_question in enumerate(sub_questions):
+            if question.sub_questions[i].image_id is not None:
+                await question_manager.set_sub_question_image(
+                    sub_question_id=sub_question.id,
+                    image_id=question.sub_questions[i].image_id,
+                )
+    except (SubQuestionIdInvalid, QuestionIdInvalid, ImageIdInvalid) as e:
+        return JSONResponse({"msg": str(e)}, status_code=404)
 
     return JSONResponse({"question_id": question_.id})
 

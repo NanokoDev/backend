@@ -113,11 +113,16 @@ async def add_question(question: Question):
 
 @router.get("/question/get", response_model=List[Question])
 async def get_questions(
-    question_id: Optional[str] = None,
+    question_id: Optional[int] = None,
     source: Optional[str] = None,
     concept: Optional[ConceptType] = None,
     process: Optional[ProcessType] = None,
 ):
+    if question_id is not None and not isinstance(question_id, int):
+        return JSONResponse({"msg": "question_id should be an integer!"}, 422)
+    if source is not None and not isinstance(source, str):
+        return JSONResponse({"msg": "source should be an integer!"}, 422)
+
     # TODO: Authorisation
     if question_id is not None:
         question = await question_manager.get_question(question_id)
@@ -187,7 +192,14 @@ async def get_questions(
 
 @router.get("/question/approve")
 async def approve_question(question_id: int):
-    result = await question_manager.approve_question(question_id=question_id)
+    if question_id is not None and not isinstance(question_id, int):
+        return JSONResponse({"msg": "question_id should be an integer!"}, 422)
+
+    try:
+        result = await question_manager.approve_question(question_id=question_id)
+    except QuestionIdInvalid as e:
+        return JSONResponse({"msg": str(e)})
+
     if result:
         return JSONResponse({"msg": f"Approved question {question_id} successfully"})
     return JSONResponse(
@@ -197,7 +209,14 @@ async def approve_question(question_id: int):
 
 @router.delete("/question/delete")
 async def delete_question(question_id: int):
-    result = await question_manager.delete_question(question_id=question_id)
+    if question_id is not None and not isinstance(question_id, int):
+        return JSONResponse({"msg": "question_id should be an integer!"}, 422)
+
+    try:
+        result = await question_manager.delete_question(question_id=question_id)
+    except QuestionIdInvalid as e:
+        return JSONResponse({"msg": str(e)})
+
     if result:
         return JSONResponse({"msg": f"Deleted question {question_id} successfully"})
     return JSONResponse({"msg": f"Question {question_id} has already been deleted"})

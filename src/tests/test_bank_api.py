@@ -152,7 +152,7 @@ def test_question_get(client, question_id):
         "/api/v1/bank/question/get", params={"question_id": question_id}
     )
     assert response.status_code == 200
-    assert response.json()[0]["id"] == question_id
+    assert response.json() == []  # Question is not audited so no result
 
     response = client.get("/api/v1/bank/question/get", params={"question_id": 100})
     assert response.status_code == 200
@@ -160,9 +160,7 @@ def test_question_get(client, question_id):
 
     # TODO: Different authorisations with different responses
 
-    response = client.get(
-        "/api/v1/bank/question/get", jsparamson={"question_id": "100"}
-    )
+    response = client.get("/api/v1/bank/question/get", params={"question_id": "100"})
     assert response.status_code == 200
     assert response.json() == []
 
@@ -181,13 +179,13 @@ def test_question_approve(client, question_id):
 
     response = client.get("/api/v1/bank/question/approve", params={"question_id": 100})
     assert response.status_code == 200
-    assert response.json()["msg"] == f"Question {question_id} has already been deleted"
+    assert "invalid" in response.json()["msg"].lower()
 
     response = client.get(
         "/api/v1/bank/question/approve", params={"question_id": "100"}
     )
     assert response.status_code == 200
-    assert response.json()["msg"] == f"Question {question_id} has already been deleted"
+    assert "invalid" in response.json()["msg"].lower()
 
     response = client.get(
         "/api/v1/bank/question/approve",
@@ -198,22 +196,24 @@ def test_question_approve(client, question_id):
 
 def test_question_delete(client, question_id):
     response = client.delete(
-        "/api/v1/bank/question/delete", json={"question_id": question_id}
+        "/api/v1/bank/question/delete", params={"question_id": question_id}
     )
     assert response.status_code == 200
     assert response.json()["msg"]
 
-    response = client.delete("/api/v1/bank/question/delete", json={"question_id": 100})
-    assert response.status_code == 200
-    assert response.json()["msg"] == f"Question {question_id} has already been deleted"
-
     response = client.delete(
-        "/api/v1/bank/question/delete", json={"question_id": "100"}
+        "/api/v1/bank/question/delete", params={"question_id": 100}
     )
     assert response.status_code == 200
-    assert response.json()["msg"] == f"Question {question_id} has already been deleted"
+    assert "invalid" in response.json()["msg"].lower()
 
     response = client.delete(
-        "/api/v1/bank/question/delete", json={"question_id": "this is not an integer"}
+        "/api/v1/bank/question/delete", params={"question_id": "100"}
+    )
+    assert response.status_code == 200
+    assert "invalid" in response.json()["msg"].lower()
+
+    response = client.delete(
+        "/api/v1/bank/question/delete", params={"question_id": "this is not an integer"}
     )
     assert response.status_code == 422

@@ -18,9 +18,12 @@ def pytest_configure(config):
 
 def pytest_unconfigure(config):
     if cfg.config.image_store_path.exists():
-        shutil.rmtree(cfg.config.image_store_path)
+        shutil.rmtree("temp_data")
 
     from backend.api.bank import question_manager
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(question_manager.close())
+
+    if cfg.config.bank_db_path is not None and cfg.config.bank_db_path.exists():
+        cfg.config.bank_db_path.unlink()

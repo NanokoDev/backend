@@ -149,6 +149,7 @@ async def add_question(question: Question):
                 answer=sub_question.answer,
                 concept=sub_question.concept,
                 process=sub_question.process,
+                keywords=sub_question.keywords,
             )
         )
 

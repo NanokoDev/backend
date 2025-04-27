@@ -1,12 +1,10 @@
 from typing import List, Optional
 from sqlalchemy import String, Boolean, ForeignKey, Enum
-from sqlalchemy.orm import mapped_column, relationship, Mapped, DeclarativeBase
+from sqlalchemy.orm import mapped_column, relationship, Mapped
 
+from backend.db.models.base import Base
+from backend.db.models.user import CompletedSubQuestion
 from backend.types.question import ConceptType, ProcessType
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 class Image(Base):
@@ -48,6 +46,10 @@ class SubQuestion(Base):
 
     image: Mapped[Optional["Image"]] = relationship(back_populates="sub_questions")
     question: Mapped["Question"] = relationship(back_populates="sub_questions")
+
+    completed_sub_questions: Mapped[List[CompletedSubQuestion]] = relationship(
+        back_populates="sub_question"
+    )
 
     def __repr__(self) -> str:
         return f"SubQuestion(id={self.id!r}, concept={self.concept!r}, process={self.process!r})"

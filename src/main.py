@@ -28,6 +28,10 @@ def main(config: Config):
         config.bank_db_path.parent.mkdir(exist_ok=True, parents=True)
     if config.image_store_path is not None:
         config.image_store_path.mkdir(exist_ok=True, parents=True)
+
+    if config.jwt_secret is None:
+        raise ValueError("JWT secret must be set in the config file")
+
     app = get_app()
     uvicorn.run(app, host=config.host, port=config.port)
 

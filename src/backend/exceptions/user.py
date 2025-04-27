@@ -13,3 +13,24 @@ class UserIdInvalid(UserDatabaseError):
 
     def __init__(self, user_id: int) -> None:
         super().__init__(f"Invalid user_id {user_id}")
+
+
+class UserEmailInvalid(UserDatabaseError):
+    """Exception raised when a user email is invalid"""
+
+    def __init__(self, email: str) -> None:
+        super().__init__(f"Invalid email {email}")
+
+
+class UserEmailAlreadyExists(UserDatabaseError):
+    """Exception raised when a user email already exists"""
+
+    def __init__(self, email: str) -> None:
+        super().__init__(f"Email {email} already exists")
+
+
+class UsernameAlreadyExists(UserDatabaseError):
+    """Exception raised when a username already exists"""
+
+    def __init__(self, username: str) -> None:
+        super().__init__(f"Username {username} already exists")

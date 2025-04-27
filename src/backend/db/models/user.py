@@ -42,7 +42,9 @@ class User(Base):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(50))
+    email: Mapped[str] = mapped_column(unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(50))
     password_hash: Mapped[str]
     permission: Mapped[Permission] = mapped_column(
         Enum(Permission, create_constraint=True, native_enum=True)
@@ -52,4 +54,4 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"User(id={self.id!r}, name={self.name!r}, permission={self.permission.value!r})"
+        return f"User(id={self.id!r}, username={self.username!r}, permission={self.permission.value!r})"

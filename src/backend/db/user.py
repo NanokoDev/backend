@@ -1,3 +1,4 @@
+import re
 import bcrypt
 from sqlalchemy import select
 from typing import Optional, List
@@ -5,9 +6,14 @@ from sqlalchemy.orm import joinedload
 
 from backend.db.base import DatabaseManager
 from backend.db.models.bank import SubQuestion
-from backend.exceptions.user import UserIdInvalid
 from backend.types.user import Permission, Performance
 from backend.db.models.user import User, CompletedSubQuestion
+from backend.exceptions.user import (
+    UserIdInvalid,
+    UserEmailInvalid,
+    UsernameAlreadyExists,
+    UserEmailAlreadyExists,
+)
 
 
 class UserManager:
@@ -17,22 +23,44 @@ class UserManager:
         self._Session = database_manager.Session
 
     async def create_user(
-        self, name: str, password: str, permission: Permission
+        self,
+        username: str,
+        email: str,
+        display_name: str,
+        password: str,
+        permission: Permission,
     ) -> User:
         """Create a new user.
 
         Args:
-            name (str): The name of the user.
-            password (str): The password of the user, which will be hashed and salted before storage.
-            permission (Permission): The permission of the user.
+            username (str): The username of the user.
+            email (str): The email of the user.
+            display_name (str): The display name of the user.
+            password (str): The password of the user.
+            permission (Permission): The permission level of the user.
 
         Returns:
             User: The created user object.
         """
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(password.encode(), salt).decode()
+
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, email):
+            raise UserEmailInvalid(email)
+
+        existing_user = await self.get_user_by_email(email)
+        if existing_user:
+            raise UserEmailAlreadyExists(email)
+
+        existing_user = await self.get_user_by_username(username)
+        if existing_user:
+            raise UsernameAlreadyExists(username)
+
         user = User(
-            name=name,
+            username=username,
+            email=email,
+            display_name=display_name,
             password_hash=hashed_password,
             permission=permission,
         )
@@ -52,6 +80,38 @@ class UserManager:
         """
         async with self._Session() as session:
             user_result = await session.execute(select(User).filter(User.id == user_id))
+            user = user_result.scalars().first()
+            return user
+
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get a user by their email.
+
+        Args:
+            email (str): The email of the user.
+
+        Returns:
+            Optional[User]: The user object if found, otherwise None.
+        """
+        async with self._Session() as session:
+            user_result = await session.execute(
+                select(User).filter(User.email == email)
+            )
+            user = user_result.scalars().first()
+            return user
+
+    async def get_user_by_username(self, username: str) -> Optional[User]:
+        """Get a user by their username.
+
+        Args:
+            username (str): The username of the user.
+
+        Returns:
+            Optional[User]: The user object if found, otherwise None.
+        """
+        async with self._Session() as session:
+            user_result = await session.execute(
+                select(User).filter(User.username == username)
+            )
             user = user_result.scalars().first()
             return user
 

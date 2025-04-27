@@ -13,6 +13,7 @@ class Config(BaseModel):
     port: Optional[int] = 25324
     bank_db_path: Optional[Path] = Path("data/bank.db")
     image_store_path: Optional[Path] = Path("data/images")
+    jwt_secret: Optional[str] = None
 
 
 config = Config()

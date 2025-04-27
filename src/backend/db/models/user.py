@@ -1,5 +1,6 @@
+import datetime
 from typing import List, TYPE_CHECKING
-from sqlalchemy import String, ForeignKey, Enum
+from sqlalchemy import String, ForeignKey, Enum, DateTime
 from sqlalchemy.orm import mapped_column, relationship, Mapped
 
 from backend.db.models.base import Base
@@ -18,8 +19,12 @@ class CompletedSubQuestion(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     sub_question_id: Mapped[int] = mapped_column(ForeignKey("sub_question.id"))
+    answer: Mapped[str] = mapped_column(String(1000))
     performance: Mapped[Performance] = mapped_column(
         Enum(Performance, create_constraint=True, native_enum=True)
+    )
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime, default=datetime.datetime.now(datetime.timezone.utc)
     )
 
     user: Mapped["User"] = relationship(back_populates="completed_sub_questions")
@@ -39,7 +44,6 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50))
     password_hash: Mapped[str]
-    password_salt: Mapped[str]
     permission: Mapped[Permission] = mapped_column(
         Enum(Permission, create_constraint=True, native_enum=True)
     )

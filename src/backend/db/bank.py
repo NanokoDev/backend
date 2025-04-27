@@ -1,12 +1,11 @@
 from pathlib import Path
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
-from sqlalchemy.orm import sessionmaker
 from typing import Optional, Union, List
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+from backend.db.base import DatabaseManager
 from backend.types.question import ConceptType, ProcessType
-from backend.db.models.bank import Base, Image, SubQuestion, Question
+from backend.db.models.bank import Image, SubQuestion, Question
 from backend.exceptions.bank import (
     ImageIdInvalid,
     QuestionIdInvalid,
@@ -17,21 +16,8 @@ from backend.exceptions.bank import (
 class QuestionManager:
     """A class to manage the question bank database"""
 
-    def __init__(self, path: Optional[str] = ":memory:"):
-        self._engine = create_async_engine(f"sqlite+aiosqlite:///{path}")
-        self._Session: sessionmaker[AsyncSession] = sessionmaker(
-            bind=self._engine, class_=AsyncSession, expire_on_commit=False
-        )
-
-    async def init(self) -> None:
-        """Initialise the database and create the tables"""
-        async with self._engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-
-    async def close(self) -> None:
-        """Close the database connection"""
-        self._Session.close_all()
+    def __init__(self, database_manager: DatabaseManager):
+        self._Session = database_manager.Session
 
     async def add_image(self, description: str, path: Union[str, Path]) -> Image:
         """Add an image to the database

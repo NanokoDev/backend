@@ -1,11 +1,11 @@
 from typing import List, Optional
-from contextlib import asynccontextmanager
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi import APIRouter, FastAPI, UploadFile, Body, HTTPException
+from fastapi import APIRouter, UploadFile, Body, HTTPException
 
 from backend.config import config
 from backend.utils import calculate_hash
 from backend.db.bank import QuestionManager
+from backend.api.base import database_manager
 from backend.api.models.bank import Question, SubQuestion
 from backend.types.question import ConceptType, ProcessType
 from backend.db.models.bank import SubQuestion as DBSubQuestion
@@ -16,25 +16,8 @@ from backend.exceptions.bank import (
 )
 
 
-question_manager = QuestionManager(
-    config.bank_db_path.resolve().as_posix()
-    if config.bank_db_path is not None
-    else ":memory:"
-)
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    """Lifespan context manager for bank API
-
-    used to initialize and close the QuestionManager
-    """
-    await question_manager.init()
-    yield
-    await question_manager.close()
-
-
-router = APIRouter(prefix="/bank", lifespan=lifespan)
+question_manager = QuestionManager(database_manager=database_manager)
+router = APIRouter(prefix="/bank")
 
 
 @router.post("/image/upload")

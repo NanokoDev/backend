@@ -1,7 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel
 
-from backend.types.user import Permission
+from backend.types.user import Permission, Performance
 
 
 class Token(BaseModel):
@@ -23,3 +23,10 @@ class User(BaseModel):
     id: int
     name: str
     permission: Permission
+
+
+class FeedBack(BaseModel):
+    """Feedback model for API"""
+
+    text: str
+    performance: Performance

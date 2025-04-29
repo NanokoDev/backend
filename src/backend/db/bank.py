@@ -160,6 +160,21 @@ class QuestionManager:
                 for sub_question in sub_questions:
                     sub_question.question_id = question.id
 
+    async def get_sub_question(self, sub_question_id: int) -> Optional[SubQuestion]:
+        """Get a subquestion by its ID
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+
+        Returns:
+            Optional[SubQuestion]: The subquestion object if found, otherwise None
+        """
+        async with self._Session() as session:
+            result = await session.execute(
+                select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+            )
+            return result.scalars().first()
+
     async def get_question(self, question_id: int) -> Optional[Question]:
         """Get a question by its ID
 

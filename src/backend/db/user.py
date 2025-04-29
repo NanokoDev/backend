@@ -39,6 +39,11 @@ class UserManager:
             password (str): The password of the user.
             permission (Permission): The permission level of the user.
 
+        Raises:
+            UserEmailInvalid: If the email format is invalid.
+            UserEmailAlreadyExists: If the email already exists in the database.
+            UsernameAlreadyExists: If the username already exists in the database.
+
         Returns:
             User: The created user object.
         """
@@ -139,6 +144,7 @@ class UserManager:
         sub_question: SubQuestion,
         answer: str,
         performance: Performance,
+        feedback: str = None,
     ) -> CompletedSubQuestion:
         """Add a completed sub-question for a user.
 
@@ -147,6 +153,7 @@ class UserManager:
             sub_question (SubQuestion): The sub-question object.
             answer (str): The answer provided by the user.
             performance (Performance): The performance level of the user on this sub-question.
+            feedback (str, optional): Feedback for the user. Defaults to None.
 
         Returns:
             CompletedSubQuestion: The created completed sub-question object.
@@ -156,6 +163,7 @@ class UserManager:
             sub_question=sub_question,
             answer=answer,
             performance=performance,
+            feedback=feedback,
         )
         async with self._Session() as session:
             async with session.begin():

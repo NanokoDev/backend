@@ -23,6 +23,7 @@ class CompletedSubQuestion(Base):
     performance: Mapped[Performance] = mapped_column(
         Enum(Performance, create_constraint=True, native_enum=True)
     )
+    feedback: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[DateTime] = mapped_column(
         DateTime, default=datetime.datetime.now(datetime.timezone.utc)
     )
@@ -54,4 +55,4 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"User(id={self.id!r}, username={self.username!r}, permission={self.permission.value!r})"
+        return f"User(id={self.id!r}, username={self.username!r}, permission={self.permission.name!r})"

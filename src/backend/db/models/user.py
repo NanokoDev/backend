@@ -54,5 +54,35 @@ class User(Base):
         back_populates="user"
     )
 
+    teaching_classes: Mapped[List["Class"]] = relationship(
+        back_populates="teacher", foreign_keys="Class.teacher_id"
+    )
+    enrolled_class_id: Mapped[int] = mapped_column(ForeignKey("class.id"))
+    enrolled_class: Mapped["Class"] = relationship(
+        back_populates="students", foreign_keys=[enrolled_class_id]
+    )
+
     def __repr__(self) -> str:
         return f"User(id={self.id!r}, username={self.username!r}, permission={self.permission.name!r})"
+
+
+class Class(Base):
+    """Class model with a teacher and students"""
+
+    __tablename__ = "class"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    enter_code: Mapped[str] = mapped_column(String(10))
+    teacher_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
+    students: Mapped[List[User]] = relationship(
+        "User", back_populates="enrolled_class", foreign_keys="User.enrolled_class_id"
+    )
+
+    teacher: Mapped[User] = relationship(
+        "User", back_populates="teaching_classes", foreign_keys=[teacher_id]
+    )
+    # Because here are two foreign keys to the same table, we need to specify which one to use for the relationship
+
+    def __repr__(self) -> str:
+        return f"Class(id={self.id!r}, teacher_id={self.teacher_id!r})"

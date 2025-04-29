@@ -14,9 +14,12 @@ from backend.api.base import database_manager
 from backend.api.models.user import Token, TokenData, User, FeedBack
 from backend.exceptions.user import (
     UserIdInvalid,
+    ClassIdInvalid,
     UserEmailInvalid,
+    ClassAlreadyExists,
     UsernameAlreadyExists,
     UserEmailAlreadyExists,
+    ClassEnterCodeIncorrect,
 )
 
 
@@ -73,7 +76,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     """Get the current user from the token.
 
     Args:
-        token (Annotated[str, Depends): Token from the request.
+        token (str): Token from the request.
 
     Raises:
         HTTPException: If the token is invalid or expired.
@@ -116,7 +119,7 @@ async def login_for_access_token(
     """Login for access token.
 
     Args:
-        form_data (Annotated[OAuth2PasswordRequestForm, Depends): Form data containing username and password.
+        form_data (OAuth2PasswordRequestForm): Form data containing username and password.
 
     Raises:
         HTTPException: If the username or password is incorrect.
@@ -213,7 +216,7 @@ async def submit_answer(
     Args:
         sub_question_id (int): ID of the sub-question.
         answer (str): The answer to the sub-question.
-        current_user (Annotated[User, Depends): Current user from the token.
+        current_user (User): Current user from the token.
 
     Raises:
         HTTPException: If the sub-question is not found.
@@ -264,7 +267,7 @@ async def reset_password(
     Args:
         old_password (str): The old password of the user.
         new_password (str): The new password to set for the user.
-        current_user (Annotated[User, Depends): Current user from the token.
+        current_user (User): Current user from the token.
 
     Raises:
         HTTPException: If the old password is incorrect or the new password is the same as the old password.
@@ -290,3 +293,145 @@ async def reset_password(
         content={"message": "Password reset successfully"},
         status_code=status.HTTP_200_OK,
     )
+
+
+@router.get("/create_class")
+async def create_class(
+    class_name: str,
+    enter_code: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Create a new class.
+
+    Args:
+        class_name (str): Name of the class.
+        enter_code (str): Enter code for the class.
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the class name already exists or the user does not have permission to create a class, or the user ID is invalid.
+
+    Returns:
+        Class: The created class object.
+    """
+    try:
+        return await user_manager.create_class(
+            class_name=class_name,
+            enter_code=enter_code,
+            teacher_id=current_user.id,
+        )
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid user ID",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied",
+        )
+    except ClassAlreadyExists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Class name already exists",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
+
+
+@router.get("/join_class")
+async def join_class(
+    class_name: str,
+    enter_code: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Join a class.
+
+    Args:
+        class_name (str): Name of the class.
+        enter_code (str): Enter code for the class.
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the class name does not exist or the enter code is incorrect.
+
+    Returns:
+        Class: The joined class object.
+    """
+    try:
+        class_ = await user_manager.get_class_by_name(class_name=class_name)
+        if not class_:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Class not found",
+            )
+
+        return await user_manager.join_class(
+            user_id=current_user.id,
+            class_id=class_.id,
+            enter_code=enter_code,
+        )
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid user ID",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is already in a class or trying to join their own class",
+        )
+    except ClassIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Class not found",
+        )
+    except ClassEnterCodeIncorrect:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect enter code",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
+
+
+@router.get("/leave_class")
+async def leave_class(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Leave the current class.
+
+    Args:
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the user is not in a class.
+
+    Returns:
+        JSONResponse: A JSON response indicating the success of leaving the class.
+    """
+    try:
+        await user_manager.leave_class(
+            user_id=current_user.id,
+        )
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not in a class",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )

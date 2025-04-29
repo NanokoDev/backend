@@ -7,12 +7,15 @@ from sqlalchemy.orm import joinedload
 from backend.db.base import DatabaseManager
 from backend.db.models.bank import SubQuestion
 from backend.types.user import Permission, Performance
-from backend.db.models.user import User, CompletedSubQuestion
+from backend.db.models.user import User, CompletedSubQuestion, Class
 from backend.exceptions.user import (
     UserIdInvalid,
+    ClassIdInvalid,
     UserEmailInvalid,
+    ClassAlreadyExists,
     UsernameAlreadyExists,
     UserEmailAlreadyExists,
+    ClassEnterCodeIncorrect,
 )
 
 
@@ -223,3 +226,152 @@ class UserManager:
                 salt = bcrypt.gensalt()
                 hashed_password = bcrypt.hashpw(new_password.encode(), salt).decode()
                 user.password_hash = hashed_password
+
+    async def create_class(
+        self, teacher_id: int, class_name: str, enter_code: str
+    ) -> Class:
+        """Create a new class for a teacher.
+
+        Args:
+            teacher_id (int): The ID of the teacher.
+            class_name (str): The name of the class.
+            enter_code (str): The enter code that students will use to join the class.
+
+        Raises:
+            UserIdInvalid: If the teacher with the given ID is not found.
+            PermissionError: If the user does not have permission to create a class.
+            ClassAlreadyExists: If the class name already exists.
+
+        Returns:
+            Class: The created class object.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                teacher = await self.get_user_by_id(teacher_id)
+                if teacher is None:
+                    raise UserIdInvalid(teacher_id)
+                if teacher.permission < Permission.TEACHER:
+                    raise PermissionError(
+                        f"User {teacher.username} does not have permission to create a class."
+                    )
+
+                existing_class = await session.execute(
+                    select(Class).filter(Class.name == class_name)
+                )
+                if existing_class.scalars().first() is not None:
+                    raise ClassAlreadyExists(class_name)
+
+                new_class = Class(
+                    name=class_name, teacher=teacher, enter_code=enter_code
+                )
+                session.add(new_class)
+                return new_class
+
+    async def join_class(self, user_id: int, class_id: int, enter_code: str) -> Class:
+        """Join a user to a class.
+
+        Args:
+            user_id (int): ID of the user.
+            class_id (int): ID of the class.
+            enter_code (str): The enter code for the class.
+
+        Raises:
+            UserIdInvalid: If the user with the given ID is not found.
+            PermissionError: If the user was already enrolled in a class.
+            ClassIdInvalid: If the class with the given ID is not found.
+            PermissionError: If the user is trying to join their own class.
+            ClassEnterCodeIncorrect: If the enter code is incorrect.
+
+        Returns:
+            Class: The class object the user joined.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                user = await self.get_user_by_id(user_id)
+                if user is None:
+                    raise UserIdInvalid(user_id)
+
+                if user.enrolled_class_id is not None:
+                    raise PermissionError(
+                        f"User {user.username} is already enrolled in a class."
+                    )
+
+                class_ = await session.execute(
+                    select(Class).filter(Class.id == class_id)
+                )
+                class_ = class_.scalars().first()
+                if class_ is None:
+                    raise ClassIdInvalid(class_id)
+
+                if class_.teacher_id == user.id:
+                    raise PermissionError(
+                        f"User {user.username} cannot join their own class."
+                    )
+
+                if class_.enter_code != enter_code:
+                    raise ClassEnterCodeIncorrect(enter_code)
+
+                class_.students.append(user)
+                user.enrolled_class = class_
+                return class_
+
+    async def leave_class(self, user_id: int) -> None:
+        """Leave the class the user is enrolled in.
+
+        Args:
+            user_id (int): ID of the user.
+
+        Raises:
+            UserIdInvalid: If the user with the given ID is not found.
+            PermissionError: If the user is not enrolled in any class.
+
+        Returns:
+            None: The user has successfully left the class.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                user = await self.get_user_by_id(user_id)
+                if user is None:
+                    raise UserIdInvalid(user_id)
+
+                if user.enrolled_class_id is None:
+                    raise PermissionError(
+                        f"User {user.username} is not enrolled in any class."
+                    )
+
+                user.enrolled_class = None
+                user.enrolled_class_id = None
+                return None
+
+    async def get_class_by_id(self, class_id: int) -> Optional[Class]:
+        """Get a class by its ID.
+
+
+        Args:
+            class_id (int): The ID of the class.
+
+        Returns:
+            Optional[Class]: The class object if found, otherwise None.
+        """
+        async with self._Session() as session:
+            class_result = await session.execute(
+                select(Class).filter(Class.id == class_id)
+            )
+            class_ = class_result.scalars().first()
+            return class_
+
+    async def get_class_by_name(self, class_name: str) -> Optional[Class]:
+        """Get a class by its name
+
+        Args:
+            class_name (str): The name of the class.
+
+        Returns:
+            Optional[Class]: The class object if found, otherwise None.
+        """
+        async with self._Session() as session:
+            class_result = await session.execute(
+                select(Class).filter(Class.name == class_name)
+            )
+            class_ = class_result.scalars().first()
+            return class_

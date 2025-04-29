@@ -1,18 +1,21 @@
 import re
 import bcrypt
+import datetime
 from sqlalchemy import select
 from typing import Optional, List
 from sqlalchemy.orm import joinedload
 
 from backend.db.base import DatabaseManager
-from backend.db.models.bank import SubQuestion
 from backend.types.user import Permission, Performance
-from backend.db.models.user import User, CompletedSubQuestion, Class
+from backend.exceptions.bank import SubQuestionIdInvalid
+from backend.db.models.bank import SubQuestion, Question
+from backend.db.models.user import User, CompletedSubQuestion, Class, Assignment
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,
     UserEmailInvalid,
     ClassAlreadyExists,
+    AssignmentIdInvalid,
     UsernameAlreadyExists,
     UserEmailAlreadyExists,
     ClassEnterCodeIncorrect,
@@ -143,8 +146,9 @@ class UserManager:
 
     async def add_completed_sub_question(
         self,
-        user: User,
-        sub_question: SubQuestion,
+        user_id: int,
+        sub_question_id: int,
+        assignment_id: int,
         answer: str,
         performance: Performance,
         feedback: str = None,
@@ -152,26 +156,71 @@ class UserManager:
         """Add a completed sub-question for a user.
 
         Args:
-            user (User): The user object.
-            sub_question (SubQuestion): The sub-question object.
+            user_id (int): The ID of the user.
+            sub_question_id (int): The ID of the sub-question.
+            assignment_id (int): The ID of the assignment.
             answer (str): The answer provided by the user.
             performance (Performance): The performance level of the user on this sub-question.
             feedback (str, optional): Feedback for the user. Defaults to None.
 
+        Raises:
+            UserIdInvalid: If the user with the given ID is not found.
+            AssignmentIdInvalid: If the assignment with the given ID is not found.
+            PermissionError: If the user is not enrolled in any class.
+            SubQuestionIdInvalid: If the sub-question with the given ID is not found.
+            PermissionError: If the user does not have permission to complete this assignment.
+
         Returns:
             CompletedSubQuestion: The created completed sub-question object.
         """
-        completed_sub_question = CompletedSubQuestion(
-            user=user,
-            sub_question=sub_question,
-            answer=answer,
-            performance=performance,
-            feedback=feedback,
-        )
         async with self._Session() as session:
             async with session.begin():
+                user_result = await session.execute(
+                    select(User)
+                    .options(joinedload(User.enrolled_class))
+                    .filter(User.id == user_id)
+                )
+                user = user_result.scalars().first()
+                if user is None:
+                    raise UserIdInvalid(user_id)
+
+                assignment_result = await session.execute(
+                    select(Assignment).filter(Assignment.id == assignment_id)
+                )
+                assignment = assignment_result.scalars().first()
+                if assignment is None:
+                    raise AssignmentIdInvalid(assignment_id)
+
+                if user.enrolled_class_id is None:
+                    raise PermissionError(
+                        f"User {user.username} is not enrolled in any class."
+                    )
+
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                assignment_ids = [
+                    assignment.id for assignment in user.enrolled_class.assignments
+                ]
+                if assignment.id not in assignment_ids:
+                    raise PermissionError(
+                        f"User {user.username} is not allowed to complete this assignment."
+                    )
+
+                completed_sub_question = CompletedSubQuestion(
+                    user_id=user.id,
+                    sub_question_id=sub_question.id,
+                    assignment_id=assignment.id,
+                    answer=answer,
+                    performance=performance,
+                    feedback=feedback,
+                )
                 session.add(completed_sub_question)
-        return completed_sub_question
+                return completed_sub_question
 
     async def get_completed_sub_questions(
         self, user_id: int
@@ -262,7 +311,7 @@ class UserManager:
                     raise ClassAlreadyExists(class_name)
 
                 new_class = Class(
-                    name=class_name, teacher=teacher, enter_code=enter_code
+                    name=class_name, teacher_id=teacher_id, enter_code=enter_code
                 )
                 session.add(new_class)
                 return new_class
@@ -375,3 +424,180 @@ class UserManager:
             )
             class_ = class_result.scalars().first()
             return class_
+
+    async def create_assignment(
+        self,
+        teacher_id: int,
+        assignment_name: str,
+        assignment_description: str,
+        due_date: datetime.datetime,
+        questions: List[Question],
+    ) -> Assignment:
+        """Create a new assignment for a teacher.
+
+        Args:
+            teacher_id (int): The ID of the teacher.
+            assignment_name (str): The name of the assignment.
+            assignment_description (str): The description of the assignment.
+            due_date (datetime.datetime): The due date of the assignment.
+            questions (List[Question]): The list of questions for the assignment.
+
+        Raises:
+            UserIdInvalid: If the teacher with the given ID is not found.
+            PermissionError: If the user does not have permission to create an assignment.
+
+        Returns:
+            Assignment: The created assignment object.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                teacher = await self.get_user_by_id(teacher_id)
+                if teacher is None:
+                    raise UserIdInvalid(teacher_id)
+
+                if teacher.permission < Permission.TEACHER:
+                    raise PermissionError(
+                        f"User {teacher.username} does not have permission to create an assignment."
+                    )
+
+                assignment = Assignment(
+                    name=assignment_name,
+                    description=assignment_description,
+                    due_date=due_date,
+                    teacher_id=teacher_id,
+                )
+                assignment.questions.extend(questions)
+                session.add(assignment)
+                return assignment
+
+    async def assign_assignment_to_class(
+        self, assignment_id: int, class_id: int, teacher_id: int
+    ) -> None:
+        """Assign an assignment to a class.
+
+        Args:
+            assignment_id (int): The ID of the assignment.
+            class_id (int): The ID of the class.
+            teacher_id (int): The ID of the teacher.
+
+        Raises:
+            AssignmentIdInvalid: If the assignment with the given ID is not found.
+            PermissionError: If the user does not have permission to assign this assignment.
+            ClassIdInvalid: If the class with the given ID is not found.
+
+        Returns:
+            None: The assignment has been successfully assigned to the class.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                assignment_result = await session.execute(
+                    select(Assignment).filter(Assignment.id == assignment_id)
+                )
+                assignment = assignment_result.scalars().first()
+                if assignment is None:
+                    raise AssignmentIdInvalid(assignment_id)
+
+                if assignment.teacher_id != teacher_id:
+                    raise PermissionError(
+                        f"User {teacher_id} does not have permission to assign this assignment."
+                    )
+
+                class_result = await session.execute(
+                    select(Class).filter(Class.id == class_id)
+                )
+                class_ = class_result.scalars().first()
+                if class_ is None:
+                    raise ClassIdInvalid(class_id)
+
+                class_.assignments.append(assignment)
+                return None
+
+    async def get_assignments_by_teacher_id(self, teacher_id: int) -> List[Assignment]:
+        """Get all assignments created by a teacher.
+
+        Args:
+            teacher_id (int): The ID of the teacher.
+
+        Raises:
+            UserIdInvalid: If the teacher with the given ID is not found.
+            PermissionError: If the user does not have permission to view assignments.
+
+        Returns:
+            List[Assignment]: A list of assignments created by the teacher.
+        """
+        async with self._Session() as session:
+            teacher_result = await session.execute(
+                select(User).filter(User.id == teacher_id)
+            )
+            teacher = teacher_result.scalars().first()
+            if teacher is None:
+                raise UserIdInvalid(teacher_id)
+
+            if teacher.permission < Permission.TEACHER:
+                raise PermissionError(
+                    f"User {teacher.username} does not have permission to view assignments."
+                )
+
+            return teacher.assignments
+
+    async def get_assignments_by_class_id(
+        self, class_id: int, user_id: int
+    ) -> List[Assignment]:
+        """Get all assignments for a class.
+
+        Args:
+            class_id (int): The ID of the class.
+            user_id (int): The ID of the user.
+
+        Raises:
+            ClassIdInvalid: If the class with the given ID is not found.
+            UserIdInvalid: If the user with the given ID is not found.
+            PermissionError: If the user is not enrolled in the class or is the teacher of the class.
+
+        Returns:
+            List[Assignment]: A list of assignments for the class.
+        """
+        class_ = await self.get_class_by_id(class_id)
+        if class_ is None:
+            raise ClassIdInvalid(class_id)
+
+        user = await self.get_user_by_id(user_id)
+        if user is None:
+            raise UserIdInvalid(user_id)
+
+        if user.permission < Permission.ADMIN and (
+            user.enrolled_class_id != class_id or class_.teacher_id == user.id
+        ):
+            raise PermissionError(
+                f"User {user.id} is not enrolled in class {class_.id} or is the teacher of the class."
+            )
+
+        return class_.assignments
+
+    async def get_assignments_by_student_id(self, student_id: int) -> List[Assignment]:
+        """Get all assignments for a student.
+
+        Args:
+            student_id (int): The ID of the student.
+
+        Raises:
+            UserIdInvalid: If the student with the given ID is not found.
+
+        Returns:
+            List[Assignment]: A list of assignments for the student.
+        """
+        async with self._Session() as session:
+            student_result = await session.execute(
+                select(User)
+                .options(joinedload(User.enrolled_class))
+                .filter(User.id == student_id)
+            )
+            student = student_result.scalars().first()
+            if student is None:
+                raise UserIdInvalid(student_id)
+
+            return (
+                [assignment for assignment in student.enrolled_class.assignments]
+                if student.enrolled_class
+                else []
+            )

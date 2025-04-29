@@ -1,5 +1,5 @@
 import jwt
-from typing import Annotated
+from typing import Annotated, List
 from fastapi.responses import JSONResponse
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
@@ -11,12 +11,14 @@ from backend.db.user import UserManager
 from backend.types.user import Permission
 from backend.db.bank import QuestionManager
 from backend.api.base import database_manager
-from backend.api.models.user import Token, TokenData, User, FeedBack
+from backend.exceptions.bank import SubQuestionIdInvalid
+from backend.api.models.user import Token, TokenData, User, FeedBack, Class, Assignment
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,
     UserEmailInvalid,
     ClassAlreadyExists,
+    AssignmentIdInvalid,
     UsernameAlreadyExists,
     UserEmailAlreadyExists,
     ClassEnterCodeIncorrect,
@@ -208,6 +210,7 @@ async def register_user(
 @router.get("/submit", response_model=FeedBack)
 async def submit_answer(
     sub_question_id: int,
+    assignment_id: int,
     answer: str,
     current_user: Annotated[User, Depends(get_current_user)],
 ):
@@ -215,23 +218,16 @@ async def submit_answer(
 
     Args:
         sub_question_id (int): ID of the sub-question.
+        assignment_id (int): ID of the assignment.
         answer (str): The answer to the sub-question.
         current_user (User): Current user from the token.
 
     Raises:
-        HTTPException: If the sub-question is not found.
+        HTTPException: If the user ID is invalid, assignment ID is invalid, or permission error occurs.
 
     Returns:
         FeedBack: The feedback model containing the feedback text and performance from the LLM.
     """
-    sub_question = await question_manager.get_sub_question(
-        sub_question_id=sub_question_id
-    )
-    if not sub_question:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sub-question not found",
-        )
 
     # feedback, performance = llm_manager.get_feedback(
     #     question=sub_question.question, answer=answer
@@ -243,12 +239,40 @@ async def submit_answer(
     feedback = "This is a feedback"
     performance = Performance.FAMILIAR
 
-    await user_manager.add_completed_sub_question(
-        user=await user_manager.get_user_by_id(current_user.id),
-        sub_question=sub_question,
-        performance=performance,
-        feedback=feedback,
-    )
+    try:
+        await user_manager.add_completed_sub_question(
+            user_id=current_user.id,
+            sub_question_id=sub_question_id,
+            assignment_id=assignment_id,
+            answer=answer,
+            performance=performance,
+            feedback=feedback,
+        )
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    except AssignmentIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not in a class or does not have permission to do this assignment",
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sub-question not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
 
     return FeedBack(
         text=feedback,
@@ -256,7 +280,7 @@ async def submit_answer(
     )
 
 
-@router.get("/reset_password")
+@router.get("/reset_password", response_model=JSONResponse)
 async def reset_password(
     old_password: str,
     new_password: str,
@@ -295,7 +319,7 @@ async def reset_password(
     )
 
 
-@router.get("/create_class")
+@router.get("/create_class", response_model=Class)
 async def create_class(
     class_name: str,
     enter_code: str,
@@ -315,10 +339,16 @@ async def create_class(
         Class: The created class object.
     """
     try:
-        return await user_manager.create_class(
+        class_ = await user_manager.create_class(
             class_name=class_name,
             enter_code=enter_code,
             teacher_id=current_user.id,
+        )
+        return Class(
+            id=class_.id,
+            name=class_.name,
+            enter_code=class_.enter_code,
+            teacher_id=class_.teacher_id,
         )
     except UserIdInvalid:
         raise HTTPException(
@@ -342,7 +372,7 @@ async def create_class(
         )
 
 
-@router.get("/join_class")
+@router.get("/join_class", response_model=Class)
 async def join_class(
     class_name: str,
     enter_code: str,
@@ -369,10 +399,16 @@ async def join_class(
                 detail="Class not found",
             )
 
-        return await user_manager.join_class(
+        joint_class = await user_manager.join_class(
             user_id=current_user.id,
             class_id=class_.id,
             enter_code=enter_code,
+        )
+        return Class(
+            id=joint_class.id,
+            name=joint_class.name,
+            enter_code=joint_class.enter_code,
+            teacher_id=joint_class.teacher_id,
         )
     except UserIdInvalid:
         raise HTTPException(
@@ -401,7 +437,7 @@ async def join_class(
         )
 
 
-@router.get("/leave_class")
+@router.get("/leave_class", response_model=JSONResponse)
 async def leave_class(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
@@ -420,6 +456,10 @@ async def leave_class(
         await user_manager.leave_class(
             user_id=current_user.id,
         )
+        return JSONResponse(
+            content={"message": "Left class successfully"},
+            status_code=status.HTTP_200_OK,
+        )
     except UserIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -429,6 +469,133 @@ async def leave_class(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User is not in a class",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
+
+
+@router.get("/create_assignment", response_model=Assignment)
+async def create_assignment(
+    assignment_name: str,
+    description: str,
+    due_date: datetime,
+    question_ids: List[int],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    try:
+        questions = await question_manager.get_questions_by_ids(
+            question_ids=question_ids
+        )
+        assignment = await user_manager.create_assignment(
+            teacher_id=current_user.id,
+            assignment_name=assignment_name,
+            assignment_description=description,
+            due_date=due_date,
+            questions=questions,
+        )
+        return Assignment(
+            id=assignment.id,
+            name=assignment.name,
+            description=assignment.description,
+            teacher_id=assignment.teacher_id,
+        )
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to create an assignment",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
+
+
+@router.get("/assign_assignment", response_model=JSONResponse)
+async def assign_assignment(
+    assignment_id: int,
+    class_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    try:
+        await user_manager.assign_assignment_to_class(
+            assignment_id=assignment_id,
+            class_id=class_id,
+            teacher_id=current_user.id,
+        )
+        return JSONResponse(
+            content={"message": "Assignment assigned to class successfully"},
+            status_code=status.HTTP_200_OK,
+        )
+    except AssignmentIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to assign this assignment",
+        )
+    except ClassIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Class not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
+
+
+@router.get("/get_assignments", response_model=List[Assignment])
+async def get_assignments(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Get all assignments for the current user.
+    If the user is a teacher, get all assignments they created.
+    If the user is a student, get all assignments assigned to their class.
+
+    Args:
+        current_user (User): Current user from the token.
+
+    """
+    try:
+        if current_user.permission == Permission.TEACHER:
+            assignments = await user_manager.get_assignments_by_teacher_id(
+                teacher_id=current_user.id
+            )
+        else:
+            assignments = await user_manager.get_assignments_by_student_id(
+                student_id=current_user.id
+            )
+        return [
+            Assignment(
+                id=assignment.id,
+                name=assignment.name,
+                description=assignment.description,
+                teacher_id=assignment.teacher_id,
+            )
+            for assignment in assignments
+        ]
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to view assignments",
         )
     except Exception as e:
         raise HTTPException(

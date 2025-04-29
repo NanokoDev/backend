@@ -29,6 +29,13 @@ class ClassIdInvalid(UserDatabaseError):
         super().__init__(f"Invalid class_id {class_id}")
 
 
+class AssignmentIdInvalid(UserDatabaseError):
+    """Exception raised when an assignment_id is invalid"""
+
+    def __init__(self, assignment_id: int) -> None:
+        super().__init__(f"Invalid assignment_id {assignment_id}")
+
+
 class UserEmailAlreadyExists(UserDatabaseError):
     """Exception raised when a user email already exists"""
 

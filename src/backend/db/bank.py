@@ -194,6 +194,21 @@ class QuestionManager:
             question = question_result.scalars().first()
             return question
 
+    async def get_questions_by_ids(self, question_ids: List[int]):
+        """Get questions by their IDs
+
+        Args:
+            question_ids (List[int]): The IDs of the questions
+
+        Returns:
+            List[Question]: A list of question objects that match the IDs
+        """
+        async with self._Session() as session:
+            question_result = await session.execute(
+                select(Question).filter(Question.id.in_(question_ids))
+            )
+            return question_result.scalars().all()
+
     async def get_question_by_values(
         self,
         source: Optional[str],

@@ -39,3 +39,12 @@ class FeedBack(BaseModel):
 
     text: str
     performance: Performance
+
+
+class Assignment(BaseModel):
+    """Assignment model for API"""
+
+    id: int
+    name: str
+    description: str
+    teacher_id: int

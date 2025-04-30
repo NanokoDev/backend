@@ -111,7 +111,13 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     ) or await user_manager.get_user_by_email(token_data.username)
     if user is None:
         raise credentials_exception
-    return User(id=user.id, name=user.username, permission=user.permission)
+    return User(
+        id=user.id,
+        name=user.username,
+        display_name=user.display_name,
+        email=user.email,
+        permission=user.permission,
+    )
 
 
 @router.post("/token")

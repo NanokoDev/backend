@@ -22,6 +22,8 @@ class User(BaseModel):
 
     id: int
     name: str
+    display_name: str
+    email: str
     permission: Permission
 
 

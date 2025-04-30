@@ -2,7 +2,6 @@ import uvicorn
 from fastapi import FastAPI
 
 import backend.config as cfg
-from backend.api import router
 from backend.config import Config
 from backend.utils import load_config
 
@@ -13,6 +12,9 @@ def get_app():
     Returns:
         FastAPI: The FastAPI app instance
     """
+    from backend.api import router
+    # Avoid instantiating managers before the config is loaded
+
     app = FastAPI()
     app.include_router(router, prefix="/api")
     return app

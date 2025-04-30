@@ -14,6 +14,10 @@ class Config(BaseModel):
     bank_db_path: Optional[Path] = Path("data/bank.db")
     image_store_path: Optional[Path] = Path("data/images")
     jwt_secret: Optional[str] = None
+    admin_username: Optional[str] = "admin"
+    admin_password: Optional[str] = "password"
+    admin_email: Optional[str] = "admin@example.com"
+    admin_display_name: Optional[str] = "Admin"
 
 
 config = Config()

@@ -28,7 +28,7 @@ class UserManager:
     def __init__(self, database_manager: DatabaseManager):
         self._Session = database_manager.Session
 
-    async def create_user(
+    async def _create_user(
         self,
         username: str,
         email: str,
@@ -79,6 +79,44 @@ class UserManager:
             async with session.begin():
                 session.add(user)
         return user
+
+    async def create_user(
+        self,
+        username: str,
+        email: str,
+        display_name: str,
+        password: str,
+        permission: Permission,
+    ) -> User:
+        """Create a new user.
+
+        Args:
+            username (str): The username of the user.
+            email (str): The email of the user.
+            display_name (str): The display name of the user.
+            password (str): The password of the user.
+            permission (Permission): The permission level of the user.
+
+        Raises:
+            UserEmailInvalid: If the email format is invalid.
+            UserEmailAlreadyExists: If the email already exists in the database.
+            UsernameAlreadyExists: If the username already exists in the database.
+            PermissionError: If the user is trying to create an admin user.
+
+        Returns:
+            User: The created user object.
+        """
+        if permission >= Permission.ADMIN:
+            raise PermissionError(
+                f"User {username} cannot be created with permission level {permission}."
+            )
+        return await self._create_user(
+            username=username,
+            email=email,
+            display_name=display_name,
+            password=password,
+            permission=permission,
+        )
 
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         """Get a user by their ID.

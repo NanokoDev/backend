@@ -17,7 +17,7 @@ from backend.exceptions.bank import (
 
 
 question_manager = QuestionManager(database_manager=database_manager)
-router = APIRouter(prefix="/bank")
+router = APIRouter(prefix="/bank", tags=["bank"])
 
 
 @router.post("/image/upload")

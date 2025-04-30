@@ -3,7 +3,7 @@ from typing import Annotated, List
 from fastapi.responses import JSONResponse
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
-from fastapi import Depends, HTTPException, status, APIRouter
+from fastapi import Depends, HTTPException, status, APIRouter, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from backend.config import config
@@ -28,7 +28,7 @@ from backend.exceptions.user import (
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-router = APIRouter(prefix="/user")
+router = APIRouter(prefix="/user", tags=["user"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 user_manager = UserManager(database_manager=database_manager)
 question_manager = QuestionManager(database_manager=database_manager)
@@ -49,7 +49,7 @@ async def authenticate_user(username: str, password: str):
     ) or await user_manager.get_user_by_username(username)
     if not user:
         return False
-    if not user_manager.is_correct_password(user.id, password):
+    if not await user_manager.is_correct_password(user.id, password):
         return False
     return user
 
@@ -69,7 +69,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": int(expire.uctnow().timestamp())})
+    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, config.jwt_secret, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -157,13 +157,13 @@ async def read_users_me(
     return current_user
 
 
-@router.get("/register", response_model=User)
+@router.post("/register", response_model=User)
 async def register_user(
-    username: str,
-    email: str,
-    display_name: str,
-    password: str,
-    permission: Permission,
+    username: str = Body(...),
+    email: str = Body(...),
+    display_name: str = Body(...),
+    password: str = Body(...),
+    permission: Permission = Body(...),
 ):
     """Register a new user.
 
@@ -200,6 +200,11 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already exists",
         )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied",
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -207,12 +212,12 @@ async def register_user(
         )
 
 
-@router.get("/submit", response_model=FeedBack)
+@router.post("/submit", response_model=FeedBack)
 async def submit_answer(
-    sub_question_id: int,
-    assignment_id: int,
-    answer: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    sub_question_id: int = Body(...),
+    assignment_id: int = Body(...),
+    answer: str = Body(...),
+    current_user: User = Depends(get_current_user),
 ):
     """Submit an answer for a sub-question.
 
@@ -280,11 +285,11 @@ async def submit_answer(
     )
 
 
-@router.get("/reset_password", response_model=JSONResponse)
+@router.post("/reset_password")
 async def reset_password(
-    old_password: str,
-    new_password: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    old_password: str = Body(...),
+    new_password: str = Body(...),
+    current_user: User = Depends(get_current_user),
 ):
     """Reset the password for the current user.
 
@@ -319,11 +324,11 @@ async def reset_password(
     )
 
 
-@router.get("/create_class", response_model=Class)
+@router.post("/create_class", response_model=Class)
 async def create_class(
-    class_name: str,
-    enter_code: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    class_name: str = Body(...),
+    enter_code: str = Body(...),
+    current_user: User = Depends(get_current_user),
 ):
     """Create a new class.
 
@@ -372,11 +377,11 @@ async def create_class(
         )
 
 
-@router.get("/join_class", response_model=Class)
+@router.post("/join_class", response_model=Class)
 async def join_class(
-    class_name: str,
-    enter_code: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    class_name: str = Body(...),
+    enter_code: str = Body(...),
+    current_user: User = Depends(get_current_user),
 ):
     """Join a class.
 
@@ -437,7 +442,7 @@ async def join_class(
         )
 
 
-@router.get("/leave_class", response_model=JSONResponse)
+@router.post("/leave_class")
 async def leave_class(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
@@ -477,13 +482,13 @@ async def leave_class(
         )
 
 
-@router.get("/create_assignment", response_model=Assignment)
+@router.post("/create_assignment", response_model=Assignment)
 async def create_assignment(
-    assignment_name: str,
-    description: str,
-    due_date: datetime,
-    question_ids: List[int],
-    current_user: Annotated[User, Depends(get_current_user)],
+    assignment_name: str = Body(...),
+    description: str = Body(...),
+    due_date: datetime = Body(...),
+    question_ids: List[int] = Body(...),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         questions = await question_manager.get_questions_by_ids(
@@ -519,11 +524,11 @@ async def create_assignment(
         )
 
 
-@router.get("/assign_assignment", response_model=JSONResponse)
+@router.post("/assign_assignment")
 async def assign_assignment(
-    assignment_id: int,
-    class_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    assignment_id: int = Body(...),
+    class_id: int = Body(...),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         await user_manager.assign_assignment_to_class(

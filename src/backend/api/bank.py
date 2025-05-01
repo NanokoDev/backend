@@ -6,9 +6,9 @@ from backend.config import config
 from backend.utils import calculate_hash
 from backend.db.bank import QuestionManager
 from backend.api.base import database_manager
-from backend.api.models.bank import Question, SubQuestion
 from backend.types.question import ConceptType, ProcessType
 from backend.db.models.bank import SubQuestion as DBSubQuestion
+from backend.api.models.bank import Question, SubQuestion, QuestionApproveRequest
 from backend.exceptions.bank import (
     ImageIdInvalid,
     QuestionIdInvalid,
@@ -220,6 +220,8 @@ async def get_questions(
 
         if question.is_deleted or not question.is_audited:
             return []
+
+        return [question_]
     else:
         questions = await question_manager.get_question_by_values(
             source=source,
@@ -257,12 +259,12 @@ async def get_questions(
         ]
 
 
-@router.get("/question/approve")
-async def approve_question(question_id: int):
+@router.post("/question/approve")
+async def approve_question(question_approve_request: QuestionApproveRequest):
     """Approve a question in the database
 
     Args:
-        question_id (int): The question id of the question to approve
+        question_approve_request (QuestionApproveRequest): The question approval request
 
     Raises:
         HTTPException: question_id is not an integer
@@ -271,6 +273,7 @@ async def approve_question(question_id: int):
     Returns:
         JSONResponse: The result of the approval
     """
+    question_id = question_approve_request.question_id
     if question_id is not None and not isinstance(question_id, int):
         raise HTTPException(
             status_code=422,

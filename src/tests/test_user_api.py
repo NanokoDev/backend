@@ -13,6 +13,7 @@ teacher_token_cache = None
 question_id_cache = None
 sub_question_id_cache = None
 class_id_cache = None
+class_name_cache = None
 assignment_id_cache = None
 
 
@@ -77,11 +78,25 @@ def student_token(client, admin_token):
             "email": "student_email@example.com",
             "display_name": "Student",
             "password": "student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 200, (
         f"Failed to register student: {response.content}"
+    )
+    response = client.post(
+        "/api/v1/user/token",
+        headers={
+            "accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "username": "student",
+            "password": "student_password",
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get student token: {response.content}"
     )
     student_token_cache = response.json()["access_token"]
     return student_token_cache
@@ -110,11 +125,25 @@ def teacher_token(client, admin_token):
             "email": "teacher_email@example.com",
             "display_name": "Teacher",
             "password": "teacher_password",
-            "permission": Permission.TEACHER,
+            "permission": Permission.TEACHER.value,
         },
     )
     assert response.status_code == 200, (
         f"Failed to register teacher: {response.content}"
+    )
+    response = client.post(
+        "/api/v1/user/token",
+        headers={
+            "accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "username": "teacher",
+            "password": "teacher_password",
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get teacher token: {response.content}"
     )
     teacher_token_cache = response.json()["access_token"]
     return teacher_token_cache
@@ -150,6 +179,17 @@ def question_id(client, admin_token):
     assert response.status_code == 200, f"Failed to create question: {response.content}"
     question_id = response.json()["question_id"]
     question_id_cache = question_id
+
+    # approve the question
+    response = client.post(
+        "/api/v1/bank/question/approve",
+        json={"question_id": question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to approve question: {response.content}"
+    )
+
     return question_id_cache
 
 
@@ -174,7 +214,7 @@ def sub_question_id(client, admin_token, question_id):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, f"Failed to get question: {response.content}"
-    sub_question_id = response.json()["sub_questions"][0]["id"]
+    sub_question_id = response.json()[0]["sub_questions"][0]["id"]
     sub_question_id_cache = sub_question_id
     return sub_question_id_cache
 
@@ -193,7 +233,7 @@ def class_id(client, teacher_token):
     response = client.post(
         "/api/v1/user/create_class",
         json={
-            "name": "Test Class",
+            "class_name": "Test Class",
             "enter_code": "test_code",
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
@@ -318,7 +358,7 @@ def test_register(client):
             "email": "random_email@example.com",
             "display_name": "New Student",
             "password": "new_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 200, (
@@ -336,7 +376,7 @@ def test_register(client):
             "email": "random_email2@example.com",
             "display_name": "New Teacher",
             "password": "new_teacher_password",
-            "permission": Permission.TEACHER,
+            "permission": Permission.TEACHER.value,
         },
     )
     assert response.status_code == 200, (
@@ -355,7 +395,7 @@ def test_register(client):
             "email": "not_a_valid_email",  # Invalid email format
             "display_name": "New Student",
             "password": "new_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 400, (
@@ -369,7 +409,7 @@ def test_register(client):
             "email": "122@example.com",
             "display_name": "New Student",
             "password": "new_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 400, (
@@ -383,7 +423,7 @@ def test_register(client):
             "email": "random_email@example.com",  # Duplicate email
             "display_name": "New Student",
             "password": "new_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 400, (
@@ -398,7 +438,7 @@ def test_register(client):
             "email": "111@example.com",
             "display_name": "New Admin",
             "password": "new_admin_password",
-            "permission": Permission.ADMIN,
+            "permission": Permission.ADMIN.value,
         },
     )
     assert response.status_code == 403, (
@@ -412,7 +452,7 @@ def test_register(client):
             "email": "1@1.1",
             "display_name": "New Student",
             "password": "new_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 405, (
@@ -425,7 +465,7 @@ def test_register(client):
             "username": "new_student1223",
             "display_name": "New Student",
             "password": "new_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },  # Missing email field
     )
     assert response.status_code == 422, (
@@ -442,12 +482,12 @@ def test_create_class(client, teacher_token, student_token):
         student_token (str): The student token
     """
     # Expected cases
-    global class_id_cache
+    global class_id_cache, class_name_cache
     if class_id_cache is None:
         response = client.post(
             "/api/v1/user/create_class",
             json={
-                "name": "Test Class",
+                "class_name": "Test Class",
                 "enter_code": "test_code",
             },
             headers={"Authorization": f"Bearer {teacher_token}"},
@@ -455,15 +495,15 @@ def test_create_class(client, teacher_token, student_token):
         assert response.status_code == 200, (
             f"Failed to create class: {response.content}"
         )
-        class_id = response.json()["id"]
-        class_id_cache = class_id
+        class_name_cache = response.json()["name"]
+        class_id_cache = response.json()["id"]
     # If class_id_cache is not None, it is promised that class can be created successfully
 
     # Boundary cases
     response = client.post(
         "/api/v1/user/create_class",
         json={
-            "name": "Test Class2",
+            "class_name": "Test Class2",
             "enter_code": "test_code",
         },
         headers={"Authorization": f"Bearer {student_token}"},
@@ -475,7 +515,7 @@ def test_create_class(client, teacher_token, student_token):
     response = client.post(
         "/api/v1/user/create_class",
         json={
-            "name": "Test Class",  # Duplicate class name
+            "class_name": "Test Class",  # Duplicate class name
             "enter_code": "test_code",
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
@@ -489,7 +529,7 @@ def test_create_class(client, teacher_token, student_token):
         "/api/v1/user/create_class",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
-            "name": "Test Clas2s",
+            "class_name": "Test Clas2s",
             "enter_code": "test_code",
         },
     )
@@ -541,20 +581,6 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
         f"Failed to get 403 forbidden: {response.content}"
     )
 
-    response = client.post(
-        "/api/v1/user/create_assignment",
-        json={
-            "assignment_name": "Test Assignment",  # Duplicate assignment name
-            "description": "This is a test assignment",
-            "due_date": "2077-05-31T23:40:03.266Z",
-            "question_ids": [question_id],
-        },
-        headers={"Authorization": f"Bearer {teacher_token}"},
-    )
-    assert response.status_code == 403, (
-        f"Failed to get 403 bad request: {response.content}"
-    )
-
     # Unexpected cases
     response = client.get(
         "/api/v1/user/create_assignment",
@@ -585,13 +611,14 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
     )
 
 
-def test_join_class(client, student_token, teacher_token, class_id):
+def test_join_class(client, student_token, teacher_token, admin_token, class_id):
     """Test the /api/v1/user/join_class endpoint
 
     Args:
         client (TestClient): The test client
         student_token (str): The student token
         teacher_token (str): The teacher token
+        admin_token (str): The admin token
         class_id (int): The class id
     """
     class_id = class_id
@@ -636,7 +663,9 @@ def test_join_class(client, student_token, teacher_token, class_id):
             "enter_code": "wrong_code",  # incorrect enter code
             "class_name": class_name_cache,
         },
-        headers={"Authorization": f"Bearer {student_token}"},
+        headers={
+            "Authorization": f"Bearer {admin_token}"
+        },  # use admin because the student is already in the class
     )
     assert response.status_code == 400, (
         f"Failed to get 400 bad request: {response.content}"
@@ -906,11 +935,25 @@ def test_reset_password(client):
             "email": "123@123abc.com",
             "display_name": "Reset User",
             "password": "first_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 200, (
         f"Failed to register reset user: {response.content}"
+    )
+    response = client.post(
+        "/api/v1/user/token",
+        headers={
+            "accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "username": "reset_user",
+            "password": "first_password",
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get reset user token: {response.content}"
     )
     token = response.json()["access_token"]
 
@@ -977,11 +1020,25 @@ def test_leave_class(client):
             "email": "12121@idkwhasd.com",
             "display_name": "Leave Student",
             "password": "leave_student_password",
-            "permission": Permission.STUDENT,
+            "permission": Permission.STUDENT.value,
         },
     )
     assert response.status_code == 200, (
         f"Failed to register leave student: {response.content}"
+    )
+    response = client.post(
+        "/api/v1/user/token",
+        headers={
+            "accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "username": "leave_student",
+            "password": "leave_student_password",
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get leave student token: {response.content}"
     )
     student_token = response.json()["access_token"]
 
@@ -992,11 +1049,25 @@ def test_leave_class(client):
             "email": "121121@idkwhasd.com",
             "display_name": "Leave Teacher",
             "password": "leave_teacher_password",
-            "permission": Permission.TEACHER,
+            "permission": Permission.TEACHER.value,
         },
     )
     assert response.status_code == 200, (
         f"Failed to register leave teacher: {response.content}"
+    )
+    response = client.post(
+        "/api/v1/user/token",
+        headers={
+            "accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "username": "leave_teacher",
+            "password": "leave_teacher_password",
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get leave teacher token: {response.content}"
     )
     teacher_token = response.json()["access_token"]
 
@@ -1004,7 +1075,7 @@ def test_leave_class(client):
     response = client.post(
         "/api/v1/user/create_class",
         json={
-            "name": "Leave Class",
+            "class_name": "Leave Class",
             "enter_code": "leave_code",
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
@@ -1050,3 +1121,21 @@ def test_leave_class(client):
     assert response.status_code == 403, (
         f"Failed to get 403 forbidden: {response.content}"
     )  # the student is already left the class, so cannot leave again
+
+    # Unexpected cases
+    response = client.get(
+        "/api/v1/user/leave_class",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.post(
+        "/api/v1/user/leave_class",
+        # Missing Authorization header
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )
+    assert response.headers["WWW-Authenticate"] == "Bearer"

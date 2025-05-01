@@ -24,3 +24,9 @@ class Question(BaseModel):
     is_audited: Optional[bool] = None
     is_deleted: Optional[bool] = None
     sub_questions: List[SubQuestion]
+
+
+class QuestionApproveRequest(BaseModel):
+    """API model for question approval request"""
+
+    question_id: int

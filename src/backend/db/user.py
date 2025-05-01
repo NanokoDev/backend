@@ -222,6 +222,9 @@ class UserManager:
                 if user is None:
                     raise UserIdInvalid(user_id)
 
+                if user.enrolled_class_id is not None:
+                    await session.refresh(user.enrolled_class, ["assignments"])
+
                 assignment_result = await session.execute(
                     select(Assignment).filter(Assignment.id == assignment_id)
                 )
@@ -374,7 +377,12 @@ class UserManager:
         """
         async with self._Session() as session:
             async with session.begin():
-                user = await self.get_user_by_id(user_id)
+                user_result = await session.execute(
+                    select(User)
+                    .options(joinedload(User.enrolled_class))
+                    .filter(User.id == user_id)
+                )
+                user = user_result.scalars().first()
                 if user is None:
                     raise UserIdInvalid(user_id)
 
@@ -384,7 +392,9 @@ class UserManager:
                     )
 
                 class_ = await session.execute(
-                    select(Class).filter(Class.id == class_id)
+                    select(Class)
+                    .options(joinedload(Class.students))
+                    .filter(Class.id == class_id)
                 )
                 class_ = class_.scalars().first()
                 if class_ is None:
@@ -417,7 +427,12 @@ class UserManager:
         """
         async with self._Session() as session:
             async with session.begin():
-                user = await self.get_user_by_id(user_id)
+                user_result = await session.execute(
+                    select(User)
+                    .options(joinedload(User.enrolled_class))
+                    .filter(User.id == user_id)
+                )
+                user = user_result.scalars().first()
                 if user is None:
                     raise UserIdInvalid(user_id)
 
@@ -541,7 +556,9 @@ class UserManager:
                     )
 
                 class_result = await session.execute(
-                    select(Class).filter(Class.id == class_id)
+                    select(Class)
+                    .options(joinedload(Class.assignments))
+                    .filter(Class.id == class_id)
                 )
                 class_ = class_result.scalars().first()
                 if class_ is None:
@@ -565,7 +582,9 @@ class UserManager:
         """
         async with self._Session() as session:
             teacher_result = await session.execute(
-                select(User).filter(User.id == teacher_id)
+                select(User)
+                .options(joinedload(User.assignments))
+                .filter(User.id == teacher_id)
             )
             teacher = teacher_result.scalars().first()
             if teacher is None:
@@ -595,22 +614,28 @@ class UserManager:
         Returns:
             List[Assignment]: A list of assignments for the class.
         """
-        class_ = await self.get_class_by_id(class_id)
-        if class_ is None:
-            raise ClassIdInvalid(class_id)
-
-        user = await self.get_user_by_id(user_id)
-        if user is None:
-            raise UserIdInvalid(user_id)
-
-        if user.permission < Permission.ADMIN and (
-            user.enrolled_class_id != class_id or class_.teacher_id == user.id
-        ):
-            raise PermissionError(
-                f"User {user.id} is not enrolled in class {class_.id} or is the teacher of the class."
+        async with self._Session() as session:
+            class_result = await session.execute(
+                select(Class)
+                .options(joinedload(Class.assignments))
+                .filter(Class.id == class_id)
             )
+            class_ = class_result.scalars().first()
+            if class_ is None:
+                raise ClassIdInvalid(class_id)
 
-        return class_.assignments
+            user = await self.get_user_by_id(user_id)
+            if user is None:
+                raise UserIdInvalid(user_id)
+
+            if user.permission < Permission.ADMIN and (
+                user.enrolled_class_id != class_id or class_.teacher_id == user.id
+            ):
+                raise PermissionError(
+                    f"User {user.id} is not enrolled in class {class_.id} or is the teacher of the class."
+                )
+
+            return class_.assignments
 
     async def get_assignments_by_student_id(self, student_id: int) -> List[Assignment]:
         """Get all assignments for a student.
@@ -627,12 +652,17 @@ class UserManager:
         async with self._Session() as session:
             student_result = await session.execute(
                 select(User)
-                .options(joinedload(User.enrolled_class))
+                .options(
+                    joinedload(User.enrolled_class),
+                )
                 .filter(User.id == student_id)
             )
             student = student_result.scalars().first()
             if student is None:
                 raise UserIdInvalid(student_id)
+
+            if student.enrolled_class_id is not None:
+                await session.refresh(student.enrolled_class, ["assignments"])
 
             return (
                 [assignment for assignment in student.enrolled_class.assignments]

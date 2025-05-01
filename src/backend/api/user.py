@@ -184,12 +184,19 @@ async def register_user(
         User: The created user object.
     """
     try:
-        return await user_manager.create_user(
+        db_user = await user_manager.create_user(
             username=username,
             email=email,
             display_name=display_name,
             password=password,
             permission=permission,
+        )
+        return User(
+            id=db_user.id,
+            name=db_user.username,
+            display_name=db_user.display_name,
+            email=db_user.email,
+            permission=db_user.permission,
         )
     except UserEmailInvalid:
         raise HTTPException(
@@ -441,6 +448,8 @@ async def join_class(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect enter code",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

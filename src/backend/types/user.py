@@ -8,6 +8,18 @@ class Permission(Enum):
     TEACHER = 1
     ADMIN = 2
 
+    def __lt__(self, other: "Permission"):
+        return self.value < other.value
+
+    def __le__(self, other: "Permission"):
+        return self.value <= other.value
+
+    def __gt__(self, other: "Permission"):
+        return self.value > other.value
+
+    def __ge__(self, other: "Permission"):
+        return self.value >= other.value
+
 
 class Performance(Enum):
     """A standard to represent the performance of students"""

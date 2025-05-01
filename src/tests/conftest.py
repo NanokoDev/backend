@@ -4,6 +4,7 @@ from pathlib import Path
 
 import backend.config as cfg
 from backend.utils import load_config
+from backend.types.user import Permission
 
 
 def pytest_configure(config):
@@ -11,11 +12,21 @@ def pytest_configure(config):
     cfg.config = load_config(Path("src/tests/test_config.json"))
     cfg.config.image_store_path.mkdir(exist_ok=True, parents=True)
 
+    from backend.api.user import user_manager
     from backend.api.base import database_manager
-    # Import after configuration to avoid QuestionManager use the default config
+    # Import after configuration to avoid managers using the default config
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(database_manager.init())
+    loop.run_until_complete(
+        user_manager._create_user(
+            username=cfg.config.admin_username,
+            email=cfg.config.admin_email,
+            display_name=cfg.config.admin_display_name,
+            password=cfg.config.admin_password,
+            permission=Permission.ADMIN,
+        )
+    )
 
 
 def pytest_unconfigure(config):

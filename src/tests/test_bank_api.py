@@ -244,25 +244,23 @@ def test_question_approve(client, question_id):
         client (TestClient): the test client
         question_id (int): the ID of the uploaded question
     """
-    response = client.get(
-        "/api/v1/bank/question/approve", params={"question_id": question_id}
+    response = client.post(
+        "/api/v1/bank/question/approve", json={"question_id": question_id}
     )
     assert response.status_code == 200, response.content
     assert response.json()["msg"]
 
-    response = client.get("/api/v1/bank/question/approve", params={"question_id": 100})
+    response = client.post("/api/v1/bank/question/approve", json={"question_id": 100})
     assert response.status_code == 422, response.content
     assert "invalid" in response.json()["detail"].lower()
 
-    response = client.get(
-        "/api/v1/bank/question/approve", params={"question_id": "100"}
-    )
+    response = client.post("/api/v1/bank/question/approve", json={"question_id": "100"})
     assert response.status_code == 422, response.content
     assert "invalid" in response.json()["detail"].lower()
 
-    response = client.get(
+    response = client.post(
         "/api/v1/bank/question/approve",
-        params={"question_id": "this is not an integer"},
+        json={"question_id": "this is not an integer"},
     )
     assert response.status_code == 422, response.content
 

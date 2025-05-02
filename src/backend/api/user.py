@@ -1,18 +1,15 @@
 import jwt
 from typing import Annotated, List
 from fastapi.responses import JSONResponse
-from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status, APIRouter, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from backend.config import config
-from backend.db.user import UserManager
 from backend.types.user import Permission
-from backend.db.bank import QuestionManager
-from backend.api.base import database_manager
 from backend.exceptions.bank import SubQuestionIdInvalid
-from backend.api.models.user import Token, TokenData, User, FeedBack, Class, Assignment
+from backend.api.models.user import Token, User, FeedBack, Class, Assignment
+from backend.api.base import user_manager, question_manager, get_current_user_generator
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,
@@ -25,13 +22,10 @@ from backend.exceptions.user import (
 )
 
 
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 router = APIRouter(prefix="/user", tags=["user"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-user_manager = UserManager(database_manager=database_manager)
-question_manager = QuestionManager(database_manager=database_manager)
+get_current_user = get_current_user_generator(OAuth2PasswordBearer(tokenUrl="token"))
 
 
 async def authenticate_user(username: str, password: str):
@@ -70,54 +64,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, config.jwt_secret, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, config.jwt_secret, algorithm="HS256")
     return encoded_jwt
-
-
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    """Get the current user from the token.
-
-    Args:
-        token (str): Token from the request.
-
-    Raises:
-        HTTPException: If the token is invalid or expired.
-
-    Returns:
-        User: The user object if the token is valid.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, config.jwt_secret, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-
-        exp = payload.get("exp")
-        if exp is None or datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(
-            timezone.utc
-        ):
-            raise credentials_exception
-
-        token_data = TokenData(username=username)
-    except InvalidTokenError:
-        raise credentials_exception
-    user = await user_manager.get_user_by_username(
-        token_data.username
-    ) or await user_manager.get_user_by_email(token_data.username)
-    if user is None:
-        raise credentials_exception
-    return User(
-        id=user.id,
-        name=user.username,
-        display_name=user.display_name,
-        email=user.email,
-        permission=user.permission,
-    )
 
 
 @router.post("/token")

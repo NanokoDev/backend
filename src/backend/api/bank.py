@@ -345,11 +345,11 @@ async def approve_question(
 
     try:
         result = await question_manager.approve_question(question_id=question_id)
-    except QuestionIdInvalid as e:
+    except QuestionIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
-        ) from e
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Question with id {question_id} not found!",
+        )
 
     if result:
         return JSONResponse({"msg": f"Approved question {question_id} successfully"})
@@ -390,10 +390,10 @@ async def delete_question(
 
     try:
         result = await question_manager.delete_question(question_id=question_id)
-    except QuestionIdInvalid as e:
+    except QuestionIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Question with id {question_id} not found!",
         )
 
     if result:

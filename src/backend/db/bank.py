@@ -238,8 +238,12 @@ class QuestionManager:
                     Question.sub_questions.any(SubQuestion.process == process)
                 )
 
-            question_result = await session.execute(select(Question).filter(*filters))
-            return question_result.scalars().all()
+            question_result = await session.execute(
+                select(Question)
+                .options(joinedload(Question.sub_questions))
+                .filter(*filters)
+            )
+            return question_result.unique().scalars().all()
 
     async def get_image(self, image_id: int) -> Optional[Image]:
         """Get an image by its ID

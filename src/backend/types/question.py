@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class ProcessType(Enum):
+class ProcessType(IntEnum):
     """Process enum for the process of subquestions"""
 
     FORMULATE = 0
@@ -9,7 +9,7 @@ class ProcessType(Enum):
     EXPLAIN = 2
 
 
-class ConceptType(Enum):
+class ConceptType(IntEnum):
     """Concept enum for the concept of subquestions"""
 
     OPERATIONS_ON_NUMBERS = 0

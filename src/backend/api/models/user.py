@@ -39,7 +39,7 @@ class Class(BaseModel):
 class FeedBack(BaseModel):
     """Feedback model for API"""
 
-    text: str
+    comment: str
     performance: Performance
 
 

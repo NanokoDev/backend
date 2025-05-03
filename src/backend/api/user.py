@@ -9,7 +9,12 @@ from backend.config import config
 from backend.types.user import Permission
 from backend.exceptions.bank import SubQuestionIdInvalid
 from backend.api.models.user import Token, User, FeedBack, Class, Assignment
-from backend.api.base import user_manager, question_manager, get_current_user_generator
+from backend.api.base import (
+    llm_manager,
+    user_manager,
+    question_manager,
+    get_current_user_generator,
+)
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,
@@ -195,15 +200,10 @@ async def submit_answer(
         FeedBack: The feedback model containing the feedback text and performance from the LLM.
     """
 
-    # feedback, performance = llm_manager.get_feedback(
-    #     question=sub_question.question, answer=answer
-    # )
-    # TODO: Implement the LLM manager to get feedback and performance.
-
-    from backend.types.user import Performance
-
-    feedback = "This is a feedback"
-    performance = Performance.FAMILIAR
+    feedback = await llm_manager.get_sub_question_feedback(
+        sub_question_id=sub_question_id,
+        answer=answer,
+    )
 
     try:
         await user_manager.add_completed_sub_question(
@@ -211,8 +211,8 @@ async def submit_answer(
             sub_question_id=sub_question_id,
             assignment_id=assignment_id,
             answer=answer,
-            performance=performance,
-            feedback=feedback,
+            performance=feedback.performance,
+            feedback=feedback.comment,
         )
     except UserIdInvalid:
         raise HTTPException(
@@ -241,8 +241,8 @@ async def submit_answer(
         )
 
     return FeedBack(
-        text=feedback,
-        performance=performance,
+        comment=feedback.comment,
+        performance=feedback.performance,
     )
 
 

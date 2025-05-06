@@ -8,5 +8,8 @@
   "admin_username": "admin",
   "admin_password": "password",
   "admin_email": "admin@example.com",
-  "admin_display_name": "Admin"
+  "admin_display_name": "Admin",
+  "llm_model": "fake-model",
+  "llm_api_key": "fake_api_key",
+  "llm_api_url": "https://fake-llm-url.fakedomain"
 }

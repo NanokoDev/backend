@@ -3,6 +3,8 @@ import pytest
 import backend.config as cfg
 from backend.types.user import Permission
 
+from .resources import llm_api_callback
+
 
 question_id_cache = None
 sub_question_id_cache = None
@@ -689,7 +691,13 @@ def test_get_assignments(
 
 
 def test_submit(
-    client, student_token, admin_token, sub_question_id, assignment_id, class_id
+    client,
+    student_token,
+    admin_token,
+    sub_question_id,
+    assignment_id,
+    class_id,
+    httpx_mock,
 ):
     """Test the /api/v1/user/submit endpoint
 
@@ -700,7 +708,9 @@ def test_submit(
         sub_question_id (int): The sub question id
         assignment_id (int): The assignment id
         class_id (int): The class id
+        httpx_mock (HTTPXMock): The HTTPX mocker
     """
+    httpx_mock.add_callback(llm_api_callback, method="POST", is_reusable=True)
     class_id = class_id  # Ensure the assignment is assigned to a class
 
     # Expected cases

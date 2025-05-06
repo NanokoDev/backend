@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.api.models.user import User
 from backend.types.user import Permission

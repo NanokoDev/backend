@@ -22,6 +22,7 @@ class Config(BaseModel):
     admin_email: Optional[str] = "admin@example.com"
     admin_display_name: Optional[str] = "Admin"
 
+    llm_model: Optional[str] = None
     llm_api_key: Optional[str] = None
     llm_api_base_url: Optional[str] = None
 

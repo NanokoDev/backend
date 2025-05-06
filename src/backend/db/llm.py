@@ -50,9 +50,9 @@ class LLMManager:
                 judgement = sub_question.answer
 
         try:
-            response = await self.client.responses.parse(
+            response = await self.client.beta.chat.completions.parse(
                 model=self.model,
-                input=[
+                messages=[
                     {
                         "role": "system",
                         "content": (
@@ -74,10 +74,10 @@ class LLMManager:
                         ),
                     },
                 ],
-                text_format=Feedback,
+                response_format=Feedback,
             )
 
-            feedback = response.output_parsed
+            feedback = response.choices[0].message.parsed
         except Exception as e:
             raise LLMRequestError(f"LLM request error: {str(e)}")
 
@@ -113,9 +113,9 @@ class LLMManager:
                 answer = sub_question.answer
 
         try:
-            response = await self.client.responses.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
-                input=[
+                messages=[
                     {
                         "role": "system",
                         "content": (
@@ -145,4 +145,4 @@ class LLMManager:
         except Exception as e:
             raise LLMRequestError(f"LLM request error: {str(e)}")
 
-        return response.output_text
+        return response.choices[0].message.content

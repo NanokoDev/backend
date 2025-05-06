@@ -25,6 +25,7 @@ llm_manager = LLMManager(
         api_key=config.llm_api_key,
         base_url=config.llm_api_base_url,
     ),
+    model=config.llm_model,
 )
 user_manager = UserManager(database_manager=database_manager)
 question_manager = QuestionManager(database_manager=database_manager)

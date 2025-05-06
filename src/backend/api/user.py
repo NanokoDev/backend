@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from backend.config import config
 from backend.types.user import Permission
 from backend.exceptions.bank import SubQuestionIdInvalid
+from backend.exceptions.llm import LLMRequestError, InvalidLLMResponse
 from backend.api.models.user import Token, User, FeedBack, Class, Assignment
 from backend.api.base import (
     llm_manager,
@@ -194,16 +195,36 @@ async def submit_answer(
         current_user (User): Current user from the token.
 
     Raises:
-        HTTPException: If the user ID is invalid, assignment ID is invalid, or permission error occurs.
+        HTTPException: If the user ID is invalid, assignment ID is invalid, permission error occurs, or LLM request error occurs.
 
     Returns:
         FeedBack: The feedback model containing the feedback text and performance from the LLM.
     """
-
-    feedback = await llm_manager.get_sub_question_feedback(
-        sub_question_id=sub_question_id,
-        answer=answer,
-    )
+    try:
+        feedback = await llm_manager.get_sub_question_feedback(
+            sub_question_id=sub_question_id,
+            answer=answer,
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sub-question not found",
+        )
+    except LLMRequestError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="LLM request error",
+        )
+    except InvalidLLMResponse:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid LLM response",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
 
     try:
         await user_manager.add_completed_sub_question(

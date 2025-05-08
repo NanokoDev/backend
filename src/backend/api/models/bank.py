@@ -13,6 +13,7 @@ class SubQuestion(BaseModel):
     concept: ConceptType
     process: ProcessType
     keywords: Optional[List[str]] = None
+    options: Optional[List[str]] = None
     image_id: Optional[int] = None
 
 

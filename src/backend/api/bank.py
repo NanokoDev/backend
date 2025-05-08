@@ -184,6 +184,7 @@ async def add_question(
                 concept=sub_question.concept,
                 process=sub_question.process,
                 keywords=sub_question.keywords,
+                options=sub_question.options,
             )
         )
 

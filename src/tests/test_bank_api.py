@@ -79,6 +79,7 @@ def question_id(client, image_id, admin_token):
                 "answer": "This is a standard answer to the subquestion",
                 "concept": ConceptType.ELEMENTS_OF_CHANCE.value,
                 "process": ProcessType.APPLY.value,
+                "options": ["option1", "option2"],
             },
             {
                 "description": "This is test subquestion with image",

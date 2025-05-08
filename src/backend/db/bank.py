@@ -43,6 +43,7 @@ class QuestionManager:
         answer: str,
         concept: ConceptType,
         process: ProcessType,
+        options: Optional[List[str]] = None,
         keywords: Optional[List[str]] = None,
     ) -> SubQuestion:
         """Add a subquestion to the database
@@ -53,28 +54,23 @@ class QuestionManager:
             answer (str): The answer to the subquestion
             concept (ConceptType): Subquestion's concept type
             process (ProcessType): Subquestion's process type
+            options (List[str], optional): The options of the subquestion
             keywords (List[str], optional): The keywords of the subquestion
 
         Returns:
             SubQuestion: The subquestion object that was added to the database
         """
-        if keywords is None:
-            sub_question = SubQuestion(
-                seq_number=seq_number,
-                description=description,
-                answer=answer,
-                concept=concept,
-                process=process,
-            )
-        else:
-            sub_question = SubQuestion(
-                seq_number=seq_number,
-                description=description,
-                answer=answer,
-                concept=concept,
-                process=process,
-                keywords=",".join(keywords),
-            )
+
+        sub_question = SubQuestion(
+            seq_number=seq_number,
+            description=description,
+            answer=answer,
+            concept=concept,
+            process=process,
+            options=options,
+            keywords=keywords,
+        )
+
         async with self._Session() as session:
             async with session.begin():
                 session.add(sub_question)

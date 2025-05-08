@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import String, Boolean, ForeignKey, Enum
+from sqlalchemy import String, Boolean, ForeignKey, Enum, JSON
 from sqlalchemy.orm import mapped_column, relationship, Mapped
 
 from backend.db.models.base import Base
@@ -31,6 +31,8 @@ class SubQuestion(Base):
     seq_number: Mapped[int]
     # be used to sort subquestions
     description: Mapped[str]
+    options: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    # ["option1", "option2", ...]
     answer: Mapped[str]
     concept: Mapped[ConceptType] = mapped_column(
         Enum(ConceptType, create_constraint=True, native_enum=True)
@@ -38,8 +40,8 @@ class SubQuestion(Base):
     process: Mapped[ProcessType] = mapped_column(
         Enum(ProcessType, create_constraint=True, native_enum=True)
     )
-    keywords: Mapped[Optional[str]]
-    # sperated with "," e.g. "225 million years ago,one kilogram,25 grams"
+    keywords: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    # ["keyword1", "keyword2", ...]
 
     image_id = mapped_column(ForeignKey("image.id"), nullable=True)
     question_id = mapped_column(ForeignKey("question.id"))

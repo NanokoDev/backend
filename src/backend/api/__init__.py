@@ -7,6 +7,7 @@ from backend.api.llm import router as llm_router
 from backend.api.bank import router as bank_router
 from backend.api.user import router as user_router
 from backend.db import database_manager, user_manager
+from backend.api.service import router as service_router
 
 
 @asynccontextmanager
@@ -34,3 +35,4 @@ router = APIRouter(prefix="/v1", lifespan=lifespan)
 router.include_router(bank_router)
 router.include_router(user_router)
 router.include_router(llm_router)
+router.include_router(service_router)

@@ -671,3 +671,40 @@ class UserManager:
                 if student.enrolled_class
                 else []
             )
+
+    async def is_my_student(self, teacher_id: int, student_id: int) -> bool:
+        """Check if a student is in the teacher's class.
+
+        Args:
+            teacher_id (int): The ID of the teacher.
+            student_id (int): The ID of the student.
+
+        Raises:
+            UserIdInvalid: If the teacher or student with the given ID is not found.
+
+        Returns:
+            bool: True if the student is in the teacher's class, False otherwise.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                teacher_result = await session.execute(
+                    select(User)
+                    .options(joinedload(User.teaching_classes))
+                    .filter(User.id == teacher_id)
+                )
+                teacher = teacher_result.scalars().first()
+                if teacher is None:
+                    raise UserIdInvalid(teacher_id)
+
+                student_result = await session.execute(
+                    select(User)
+                    .options(joinedload(User.enrolled_class))
+                    .filter(User.id == student_id)
+                )
+                student = student_result.scalars().first()
+                if student is None:
+                    raise UserIdInvalid(student_id)
+
+                return student.enrolled_class_id in [
+                    class_.id for class_ in teacher.teaching_classes
+                ]

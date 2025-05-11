@@ -11,7 +11,9 @@ from backend.exceptions.bank import SubQuestionIdInvalid
 
 
 router = APIRouter(prefix="/llm", tags=["llm"])
-get_current_user = get_current_user_generator(OAuth2PasswordBearer(tokenUrl="../token"))
+get_current_user = get_current_user_generator(
+    OAuth2PasswordBearer(tokenUrl="../user/token")
+)
 
 
 @router.get("/get_hint")

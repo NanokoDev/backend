@@ -289,6 +289,8 @@ class UserManager:
             if user is None:
                 raise UserIdInvalid(user_id)
 
+            await session.refresh(user.completed_sub_questions, ["sub_question"])
+
             return user.completed_sub_questions
 
     async def reset_password(self, user_id: int, new_password: str) -> User:

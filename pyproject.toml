@@ -9,6 +9,7 @@ dependencies = [
     "bcrypt>=4.3.0",
     "fastapi>=0.115.12",
     "httpx>=0.28.1",
+    "numpy>=2.2.5",
     "openai>=1.77.0",
     "pydantic>=2.10.6",
     "pyjwt>=2.10.1",

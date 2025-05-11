@@ -3,11 +3,10 @@ from contextlib import asynccontextmanager
 
 from backend.config import config
 from backend.types.user import Permission
-from backend.api.user import user_manager
-from backend.api.base import database_manager
 from backend.api.llm import router as llm_router
 from backend.api.bank import router as bank_router
 from backend.api.user import router as user_router
+from backend.db import database_manager, user_manager
 
 
 @asynccontextmanager

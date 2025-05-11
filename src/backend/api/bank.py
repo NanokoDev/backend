@@ -4,12 +4,13 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi import APIRouter, UploadFile, Body, HTTPException, Depends, status
 
 from backend.config import config
+from backend.db import question_manager
 from backend.api.models.user import User
 from backend.utils import calculate_hash
 from backend.types.user import Permission
+from backend.api.base import get_current_user_generator
 from backend.types.question import ConceptType, ProcessType
 from backend.db.models.bank import SubQuestion as DBSubQuestion
-from backend.api.base import question_manager, get_current_user_generator
 from backend.api.models.bank import Question, SubQuestion, QuestionApproveRequest
 from backend.exceptions.bank import (
     ImageIdInvalid,

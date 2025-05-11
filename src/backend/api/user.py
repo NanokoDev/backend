@@ -7,15 +7,11 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from backend.config import config
 from backend.types.user import Permission
+from backend.api.base import get_current_user_generator
 from backend.exceptions.bank import SubQuestionIdInvalid
+from backend.db import user_manager, llm_manager, question_manager
 from backend.exceptions.llm import LLMRequestError, InvalidLLMResponse
 from backend.api.models.user import Token, User, FeedBack, Class, Assignment
-from backend.api.base import (
-    llm_manager,
-    user_manager,
-    question_manager,
-    get_current_user_generator,
-)
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,

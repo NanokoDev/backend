@@ -2,11 +2,12 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from backend.db import llm_manager
 from backend.api.models.user import User
 from backend.types.user import Permission
 from backend.exceptions.llm import LLMRequestError
+from backend.api.base import get_current_user_generator
 from backend.exceptions.bank import SubQuestionIdInvalid
-from backend.api.base import llm_manager, get_current_user_generator
 
 
 router = APIRouter(prefix="/llm", tags=["llm"])

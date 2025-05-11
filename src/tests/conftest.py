@@ -20,8 +20,7 @@ def pytest_configure(config):
     cfg.config = load_config(Path("src/tests/test_config.json"))
     cfg.config.image_store_path.mkdir(exist_ok=True, parents=True)
 
-    from backend.api.user import user_manager
-    from backend.api.base import database_manager
+    from backend.db import database_manager, user_manager
     # Import after configuration to avoid managers using the default config
 
     loop = asyncio.get_event_loop()
@@ -42,7 +41,7 @@ def pytest_unconfigure(config):
     if cfg.config.image_store_path.exists():
         shutil.rmtree("temp_data")
 
-    from backend.api.base import database_manager
+    from backend.db import database_manager
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(database_manager.close())

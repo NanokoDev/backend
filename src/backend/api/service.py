@@ -28,6 +28,20 @@ async def get_performances(
     user_id: int,
     user: User = Depends(get_current_user),
 ):
+    """Get the performance of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance for.
+        user (User, optional): The user object Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        PerformancesData: The performance data of the user.
+    """
     if user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -60,6 +74,20 @@ async def get_best_performances(
     user_id: int,
     user: User = Depends(get_current_user),
 ):
+    """Get the best performance of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance for.
+        user (User, optional): The user object. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        Performances: The best performance data of the user.
+    """
     if user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -92,6 +120,20 @@ async def get_average_performances(
     user_id: int,
     user: User = Depends(get_current_user),
 ):
+    """Get the average performance of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance for.
+        user (User, optional): The user object. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        Performances: The average performance data of the user.
+    """
     if user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -125,6 +167,21 @@ async def get_recent_best_performances(
     start_time: datetime.datetime,
     user: User = Depends(get_current_user),
 ):
+    """Get the recent best performance of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance for.
+        start_time (datetime.datetime): The start time to get the performance from.
+        user (User, optional): The user object. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        Performances: The recent best performance data of the user.
+    """
     if user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -161,6 +218,21 @@ async def get_recent_average_performances(
     start_time: datetime.datetime,
     user: User = Depends(get_current_user),
 ):
+    """Get the recent average performance of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance for.
+        start_time (datetime.datetime): The start time to get the performance from.
+        user (User, optional): The user object. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        Performances: The recent average performance data of the user.
+    """
     if user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -197,6 +269,21 @@ async def get_performance_trends(
     start_time: Optional[datetime.datetime] = None,
     user: User = Depends(get_current_user),
 ):
+    """Get the performance trends of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance trends for.
+        start_time (Optional[datetime.datetime], optional): The start time to get the performance trends from. Defaults to None.
+        user (User, optional): The user object. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        PerformanceTrends: The performance trends data of the user.
+    """
     if user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

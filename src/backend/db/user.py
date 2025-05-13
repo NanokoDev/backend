@@ -289,7 +289,8 @@ class UserManager:
             if user is None:
                 raise UserIdInvalid(user_id)
 
-            await session.refresh(user.completed_sub_questions, ["sub_question"])
+            for completed_sub_question in user.completed_sub_questions:
+                await session.refresh(completed_sub_question, ["sub_question"])
 
             return user.completed_sub_questions
 
@@ -339,7 +340,12 @@ class UserManager:
         """
         async with self._Session() as session:
             async with session.begin():
-                teacher = await self.get_user_by_id(teacher_id)
+                teacher_result = await session.execute(
+                    select(User)
+                    .options(joinedload(User.teaching_classes))
+                    .filter(User.id == teacher_id)
+                )
+                teacher = teacher_result.scalars().first()
                 if teacher is None:
                     raise UserIdInvalid(teacher_id)
                 if teacher.permission < Permission.TEACHER:
@@ -357,6 +363,7 @@ class UserManager:
                     name=class_name, teacher_id=teacher_id, enter_code=enter_code
                 )
                 session.add(new_class)
+                teacher.teaching_classes.append(new_class)
                 return new_class
 
     async def join_class(self, user_id: int, class_id: int, enter_code: str) -> Class:
@@ -631,7 +638,7 @@ class UserManager:
                 raise UserIdInvalid(user_id)
 
             if user.permission < Permission.ADMIN and (
-                user.enrolled_class_id != class_id or class_.teacher_id == user.id
+                user.enrolled_class_id != class_id and class_.teacher_id != user.id
             ):
                 raise PermissionError(
                     f"User {user.id} is not enrolled in class {class_.id} or is the teacher of the class."

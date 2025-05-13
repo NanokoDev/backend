@@ -27,7 +27,7 @@ class CompletedSubQuestion(Base):
     )
     feedback: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[DateTime] = mapped_column(
-        DateTime, default=datetime.datetime.now(datetime.timezone.utc)
+        DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc)
     )
 
     user: Mapped["User"] = relationship(back_populates="completed_sub_questions")

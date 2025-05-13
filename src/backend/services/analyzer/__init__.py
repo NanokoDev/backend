@@ -32,8 +32,10 @@ class Analyzer:
 
         for concept in performance_data.keys():
             for process in performance_data[concept].keys():
-                performance_data[concept][process] = max(
-                    performance_data[concept][process]
+                performance_data[concept][process] = (
+                    max(performance_data[concept][process])
+                    if len(performance_data[concept][process]) > 0
+                    else 0
                 )
 
         performances = Performances.model_validate(performance_data)
@@ -55,8 +57,12 @@ class Analyzer:
 
         for concept in performance_data.keys():
             for process in performance_data[concept].keys():
-                performance_data[concept][process] = max(
-                    performance_data[concept][process]
+                performance_data[concept][process] = round(
+                    sum(performance_data[concept][process])
+                    / len(performance_data[concept][process])
+                    if len(performance_data[concept][process]) > 0
+                    else 0,
+                    2,
                 )
 
         performances = Performances.model_validate(performance_data)
@@ -82,8 +88,10 @@ class Analyzer:
 
         for concept in performance_data.keys():
             for process in performance_data[concept].keys():
-                performance_data[concept][process] = max(
-                    performance_data[concept][process]
+                performance_data[concept][process] = (
+                    max(performance_data[concept][process])
+                    if len(performance_data[concept][process]) > 0
+                    else 0
                 )
 
         performances = Performances.model_validate(performance_data)
@@ -111,7 +119,9 @@ class Analyzer:
             for process in performance_data[concept].keys():
                 performance_data[concept][process] = round(
                     sum(performance_data[concept][process])
-                    / len(performance_data[concept][process]),
+                    / len(performance_data[concept][process])
+                    if len(performance_data[concept][process]) > 0
+                    else 0,
                     2,
                 )
 
@@ -121,13 +131,13 @@ class Analyzer:
     async def get_performance_trends(
         self,
         user_id: int,
-        timedelta: datetime.timedelta,
+        timedelta: Optional[datetime.timedelta] = None,
     ) -> PerformanceTrends:
         """Get the performance trends of a user.
 
         Args:
             user_id (int): User ID.
-            timedelta (datetime.timedelta): Time delta to filter the performances.
+            timedelta (datetime.timedelta, optional): Time delta to filter the performances. Defaults to None.
 
         Returns:
             PerformanceTrends: The performance trends of the user.
@@ -146,15 +156,20 @@ class Analyzer:
                     continue
                 x = np.arange(len(performances[concept][process]))
                 y = np.array(performances[concept][process])
-                gradient = np.polyfit(x, y, 1)[0]
-                if gradient > 1:
+
+                if x.size <= 1:
+                    result[concept][process] = Trend.STABLE
+                    continue
+
+                gradient = round(np.polyfit(x, y, 1)[0], 2)
+                if 1 < gradient:
                     result[concept][process] = Trend.INCREASING_STRONG
-                elif gradient > 0:
+                elif 0 < gradient <= 1:
                     result[concept][process] = Trend.INCREASING_SLIGHT
+                elif -1 <= gradient < 0:
+                    result[concept][process] = Trend.DECEASING_SLIGHT
                 elif gradient < -1:
                     result[concept][process] = Trend.DECEASING_STRONG
-                elif gradient < 0:
-                    result[concept][process] = Trend.DECEASING_SLIGHT
                 else:
                     result[concept][process] = Trend.STABLE
 
@@ -184,20 +199,22 @@ class Analyzer:
         for sub_question in sub_questions:
             if (
                 timedelta is not None
-                and sub_question.created_at < datetime.datetime.now() - timedelta
+                and sub_question.created_at.astimezone(datetime.timezone.utc)
+                < datetime.datetime.now(datetime.timezone.utc) - timedelta
             ):
                 continue
             if sub_question.sub_question.id not in unique_sub_questions:
                 unique_sub_questions[sub_question.sub_question.id] = sub_question
             else:
-                if (
-                    sub_question.created_at
-                    > unique_sub_questions[sub_question.sub_question.id].created_at
-                ):
+                if sub_question.created_at.astimezone(
+                    datetime.timezone.utc
+                ) > unique_sub_questions[
+                    sub_question.sub_question.id
+                ].created_at.astimezone(datetime.timezone.utc):
                     unique_sub_questions[sub_question.sub_question.id] = sub_question
 
         result = {
-            "oparation_on_numbers": {
+            "operations_on_numbers": {
                 "formulate": [],
                 "apply": [],
                 "explain": [],
@@ -207,7 +224,7 @@ class Analyzer:
                 "apply": [],
                 "explain": [],
             },
-            "spatial_properties_and_representation": {
+            "spatial_properties_and_representations": {
                 "formulate": [],
                 "apply": [],
                 "explain": [],
@@ -227,7 +244,7 @@ class Analyzer:
                 "apply": [],
                 "explain": [],
             },
-            "element_of_chance": {
+            "elements_of_chance": {
                 "formulate": [],
                 "apply": [],
                 "explain": [],

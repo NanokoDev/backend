@@ -48,10 +48,16 @@ async def get_performances(
             detail="You do not have permission to access this resource.",
         )
 
-    if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
         )
 
     try:
@@ -94,10 +100,16 @@ async def get_best_performances(
             detail="You do not have permission to access this resource.",
         )
 
-    if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
         )
 
     try:
@@ -140,10 +152,16 @@ async def get_average_performances(
             detail="You do not have permission to access this resource.",
         )
 
-    if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
         )
 
     try:
@@ -188,14 +206,20 @@ async def get_recent_best_performances(
             detail="You do not have permission to access this resource.",
         )
 
-    if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
         )
 
     try:
-        timedelta = datetime.datetime.now() - start_time
+        timedelta = datetime.datetime.now(datetime.timezone.utc) - start_time
         performances = await analyzer.get_recent_best_performances(
             user_id=user_id, timedelta=timedelta
         )
@@ -239,14 +263,20 @@ async def get_recent_average_performances(
             detail="You do not have permission to access this resource.",
         )
 
-    if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
         )
 
     try:
-        timedelta = datetime.datetime.now() - start_time
+        timedelta = datetime.datetime.now(datetime.timezone.utc) - start_time
         performances = await analyzer.get_recent_average_performances(
             user_id=user_id, timedelta=timedelta
         )
@@ -290,19 +320,25 @@ async def get_performance_trends(
             detail="You do not have permission to access this resource.",
         )
 
-    if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
         )
-
     try:
         performance_trends = (
             (await analyzer.get_performance_trends(user_id=user_id))
             if start_time is None
             else (
                 await analyzer.get_performance_trends(
-                    user_id=user_id, timedelta=datetime.datetime.now() - start_time
+                    user_id=user_id,
+                    timedelta=datetime.datetime.now(datetime.timezone.utc) - start_time,
                 )
             )
         )

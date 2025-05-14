@@ -121,6 +121,123 @@ async def add_image(
     return JSONResponse({"image_id": image.id})
 
 
+@router.post("/image/set/description")
+async def set_image_description(
+    image_id: int = Body(...),
+    description: str = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the description of an image
+
+    Args:
+        image_id (int): The id of the image to set
+        description (str): The description to set
+        current_user (User): The user who set the description
+
+    Raises:
+        HTTPException: You do not have permission to set descriptions
+        HTTPException: No image with id found
+        HTTPException: Failed to set description
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set descriptions!",
+        )
+
+    try:
+        await question_manager.set_image_description(
+            image_id=image_id, description=description
+        )
+    except ImageIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {image_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set description of image {image_id}"})
+
+
+@router.post("/image/set/hash")
+async def set_image_hash(
+    image_id: int = Body(...),
+    hash: str = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the hash of an image
+
+    Args:
+        image_id (int): The id of the image to set
+        hash (str): The hash to set
+        current_user (User): The user who set the hash
+
+    Raises:
+        HTTPException: You do not have permission to set hashes
+        HTTPException: No image with id found
+        HTTPException: No image with hash found
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set hashes!",
+        )
+
+    image_path = config.image_store_path / f"{hash}.{config.image_store_path.suffix}"
+    if not image_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with hash {hash} found!",
+        )
+
+    try:
+        await question_manager.set_image_hash(image_id=image_id, path=image_path)
+    except ImageIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {image_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set hash of image {image_id}"})
+
+
+@router.get("/image/get/description")
+async def get_image_description(
+    image_id: int, current_user: User = Depends(get_current_user)
+):
+    """Get the description of an image
+
+    Args:
+        image_id (int): The id of the image to get
+        current_user (User): The user who requested the image
+
+    Raises:
+        HTTPException: No image with id found
+        HTTPException: You do not have permission to get images
+
+    Returns:
+        JSONResponse: The description of the image
+    """
+    if current_user.permission < Permission.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to get images!",
+        )
+
+    image = await question_manager.get_image(image_id)
+    if image is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {image_id} found!",
+        )
+    return JSONResponse({"description": image.description})
+
+
 @router.get("/image/get", response_class=FileResponse)
 async def get_image(image_id: int, current_user: User = Depends(get_current_user)):
     """Get an image from the database
@@ -208,6 +325,292 @@ async def add_question(
         ) from e
 
     return JSONResponse({"question_id": question_.id})
+
+
+@router.post("/sub-question/set/description")
+async def set_sub_question_description(
+    sub_question_id: int = Body(...),
+    description: str = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the description of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        description (str): The description to set
+        current_user (User): The user who set the description
+
+    Raises:
+        HTTPException: You do not have permission to set descriptions
+        HTTPException: No sub-question with id found
+        HTTPException: Failed to set description
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set descriptions!",
+        )
+
+    try:
+        await question_manager.set_sub_question_description(
+            sub_question_id=sub_question_id, description=description
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set description of sub-question {sub_question_id}"})
+
+
+@router.post("/sub-question/set/options")
+async def set_sub_question_options(
+    sub_question_id: int = Body(...),
+    options: List[str] = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the options of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        options (List[str]): The options to set
+        current_user (User): The user who set the options
+
+    Raises:
+        HTTPException: You do not have permission to set options
+        HTTPException: No sub-question with id found
+        HTTPException: Failed to set options
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set options!",
+        )
+
+    try:
+        await question_manager.set_sub_question_options(
+            sub_question_id=sub_question_id, options=options
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set options of sub-question {sub_question_id}"})
+
+
+@router.post("/sub-question/set/answer")
+async def set_sub_question_answer(
+    sub_question_id: int = Body(...),
+    answer: str = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the answer of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        answer (str): The answer to set
+        current_user (User): The user who set the answer
+
+    Raises:
+        HTTPException: You do not have permission to set answers
+        HTTPException: No sub-question with id found
+        HTTPException: Failed to set answer
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set answers!",
+        )
+
+    try:
+        await question_manager.set_sub_question_answer(
+            sub_question_id=sub_question_id, answer=answer
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set answer of sub-question {sub_question_id}"})
+
+
+@router.post("/sub-question/set/concept")
+async def set_sub_question_concept(
+    sub_question_id: int = Body(...),
+    concept: ConceptType = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the concept of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        concept (ConceptType): The concept to set
+        current_user (User): The user who set the concept
+
+    Raises:
+        HTTPException: You do not have permission to set concepts
+        HTTPException: No sub-question with id found
+        HTTPException: Failed to set concept
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set concepts!",
+        )
+
+    try:
+        await question_manager.set_sub_question_concept(
+            sub_question_id=sub_question_id, concept=concept
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set concept of sub-question {sub_question_id}"})
+
+
+@router.post("/sub-question/set/process")
+async def set_sub_question_process(
+    sub_question_id: int = Body(...),
+    process: ProcessType = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the process of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        process (ProcessType): The process to set
+        current_user (User): The user who set the process
+
+    Raises:
+        HTTPException: You do not have permission to set processes
+        HTTPException: No sub-question with id found
+        HTTPException: Failed to set process
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set processes!",
+        )
+
+    try:
+        await question_manager.set_sub_question_process(
+            sub_question_id=sub_question_id, process=process
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set process of sub-question {sub_question_id}"})
+
+
+@router.post("/sub-question/set/keywords")
+async def set_sub_question_keywords(
+    sub_question_id: int = Body(...),
+    keywords: List[str] = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the keywords of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        keywords (List[str]): The keywords to set
+        current_user (User): The user who set the keywords
+
+    Raises:
+        HTTPException: You do not have permission to set keywords
+        HTTPException: No sub-question with id found
+        HTTPException: Failed to set keywords
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set keywords!",
+        )
+
+    try:
+        await question_manager.set_sub_question_keywords(
+            sub_question_id=sub_question_id, keywords=keywords
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set keywords of sub-question {sub_question_id}"})
+
+
+@router.post("/sub-question/set/image")
+async def set_sub_question_image(
+    sub_question_id: int = Body(...),
+    image_id: int = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the image of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question to set
+        image_id (int): The id of the image to set
+        current_user (User): The user who set the image
+
+    Raises:
+        HTTPException: You do not have permission to set images
+        HTTPException: No sub-question with id found
+        HTTPException: No image with id found
+        HTTPException: Failed to set image
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set images!",
+        )
+
+    try:
+        await question_manager.set_sub_question_image(
+            sub_question_id=sub_question_id, image_id=image_id
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {sub_question_id} found!",
+        )
+    except ImageIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {image_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set image of sub-question {sub_question_id}"})
 
 
 @router.get("/question/get", response_model=List[Question])

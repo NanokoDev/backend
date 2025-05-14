@@ -122,6 +122,27 @@ class QuestionManager:
 
                 sub_question.image_id = image.id
 
+    async def delete_sub_question_image(self, sub_question_id: int) -> None:
+        """Delete the image for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.image_id = None
+
     async def set_question(self, sub_question_ids: List[int], question_id: int) -> None:
         """Set subquestions for a question
 
@@ -155,6 +176,192 @@ class QuestionManager:
 
                 for sub_question in sub_questions:
                     sub_question.question_id = question.id
+
+    async def set_sub_question_description(
+        self, sub_question_id: int, description: str
+    ) -> None:
+        """Set the description for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+            description (str): The new description for the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.description = description
+
+    async def set_sub_question_options(
+        self, sub_question_id: int, options: List[str]
+    ) -> None:
+        """Set the options for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+            options (List[str]): The new options for the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.options = options
+
+    async def set_sub_question_answer(self, sub_question_id: int, answer: str) -> None:
+        """Set the answer for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+            answer (str): The new answer for the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.answer = answer
+
+    async def set_sub_question_concept(
+        self, sub_question_id: int, concept: ConceptType
+    ) -> None:
+        """Set the concept for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+            concept (ConceptType): The new concept for the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.concept = concept
+
+    async def set_sub_question_process(
+        self, sub_question_id: int, process: ProcessType
+    ) -> None:
+        """Set the process for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+            process (ProcessType): The new process for the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.process = process
+
+    async def set_sub_question_keywords(
+        self, sub_question_id: int, keywords: List[str]
+    ) -> None:
+        """Set the keywords for a subquestion
+
+        Args:
+            sub_question_id (int): The ID of the subquestion
+            keywords (List[str]): The new keywords for the subquestion
+
+        Raises:
+            SubQuestionIdInvalid: If the subquestion ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                sub_question_result = await session.execute(
+                    select(SubQuestion).filter(SubQuestion.id == sub_question_id)
+                )
+                sub_question = sub_question_result.scalars().first()
+
+                if sub_question is None:
+                    raise SubQuestionIdInvalid(sub_question_id)
+
+                sub_question.keywords = keywords
+
+    async def set_image_description(self, image_id: int, description: str) -> None:
+        """Set the description for an image
+
+        Args:
+            image_id (int): The ID of the image
+            description (str): The new description for the image
+
+        Raises:
+            ImageIdInvalid: If the image ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                image_result = await session.execute(
+                    select(Image).filter(Image.id == image_id)
+                )
+                image = image_result.scalars().first()
+
+                if image is None:
+                    raise ImageIdInvalid(image_id)
+
+                image.description = description
+
+    async def set_image_path(self, image_id: int, path: Union[str, Path]) -> None:
+        """Set the path for an image
+
+        Args:
+            image_id (int): The ID of the image
+            path (Union[str, Path]): The new path for the image
+
+        Raises:
+            ImageIdInvalid: If the image ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                image_result = await session.execute(
+                    select(Image).filter(Image.id == image_id)
+                )
+                image = image_result.scalars().first()
+
+                if image is None:
+                    raise ImageIdInvalid(image_id)
+
+                image.path = str(path)
 
     async def get_sub_question(self, sub_question_id: int) -> Optional[SubQuestion]:
         """Get a subquestion by its ID

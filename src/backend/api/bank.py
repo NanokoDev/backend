@@ -196,17 +196,17 @@ async def set_image_hash(
             detail="You do not have permission to set hashes!",
         )
 
-    image_path = (
-        config.image_store_path / f"{request.hash}.{config.image_store_path.suffix}"
-    )
-    if not image_path.exists():
+    image_paths = list(config.image_store_path.glob(f"{request.hash}.*"))
+    if not image_paths:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No image with hash {request.hash} found!",
         )
 
+    image_path = image_paths[0]
+
     try:
-        await question_manager.set_image_hash(
+        await question_manager.set_image_path(
             image_id=request.image_id, path=image_path
         )
     except ImageIdInvalid:

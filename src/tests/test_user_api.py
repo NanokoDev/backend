@@ -1002,7 +1002,6 @@ def test_leave_class(client):
     assert response.status_code == 405, (
         f"Failed to get 405 method not allowed: {response.content}"
     )
-
     response = client.post(
         "/api/v1/user/leave_class",
         # Missing Authorization header

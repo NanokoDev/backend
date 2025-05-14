@@ -16,6 +16,16 @@ def test_image_path():
 
 
 @pytest.fixture(scope="module")
+def test_image2_path():
+    """Get the test image path
+
+    Returns:
+        Path: the path to the test image
+    """
+    return Path("src/tests/test_image2.png")
+
+
+@pytest.fixture(scope="module")
 def uploaded_image_hash(client, test_image_path, admin_token):
     """Upload a test image and return its hash
 
@@ -29,6 +39,29 @@ def uploaded_image_hash(client, test_image_path, admin_token):
     """
     with open(test_image_path, "rb") as f:
         files = {"file": (test_image_path.name, f, "image/png")}
+        response = client.post(
+            "/api/v1/bank/image/upload",
+            files=files,
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+    assert response.status_code == 200, response.content
+    return response.json()["hash"]
+
+
+@pytest.fixture(scope="module")
+def uploaded_image2_hash(client, test_image2_path, admin_token):
+    """Upload a test image and return its hash
+
+    Args:
+        client (TestClient): the test client
+        test_image2_path (Path): the path to the test image
+        admin_token (str): the admin token
+
+    Returns:
+        str: the hash of the uploaded image
+    """
+    with open(test_image2_path, "rb") as f:
+        files = {"file": (test_image2_path.name, f, "image/png")}
         response = client.post(
             "/api/v1/bank/image/upload",
             files=files,
@@ -97,6 +130,29 @@ def question_id(client, image_id, admin_token):
     )
     assert response.status_code == 200, response.content
     return response.json()["question_id"]
+
+
+@pytest.fixture(scope="module")
+def sub_question_id(client, question_id, admin_token):
+    """Get the ID of a sub-question
+
+    Args:
+        client (TestClient): the test client
+        question_id (int): the ID of the question
+        admin_token (str): the admin token
+
+    Returns:
+        int: the ID of the sub-question
+    """
+    response = client.get(
+        "/api/v1/bank/question/get",
+        params={"question_id": question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert len(response.json()) > 0, response.content
+    assert len(response.json()[0]["sub_questions"]) > 0, response.content
+    return response.json()[0]["sub_questions"][0]["id"]
 
 
 def test_image_upload(client, test_image_path, student_token, admin_token):
@@ -540,3 +596,578 @@ def test_question_delete(client, question_id, student_token, admin_token):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 405, response.content
+
+
+def test_image_set_description(client, image_id, student_token, admin_token):
+    """Test the image set description endpoint
+
+    Args:
+        client (TestClient): the test client
+        image_id (int): the ID of the uploaded image
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/image/set/description",
+        json={"image_id": image_id, "description": "Updated description"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set description of image {image_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/image/set/description",
+        json={"image_id": 100, "description": "Updated description"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No image with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/image/set/description",
+        json={"image_id": image_id, "description": "Updated description"},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/image/set/description",
+        json={"image_id": image_id, "description": "Updated description"},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/image/set/description",
+        json={
+            "image_id": "this is not an integer",
+            "description": "Updated description",
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/image/set/description",
+        json={"image_id": image_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_image_set_hash(
+    client, image_id, uploaded_image2_hash, student_token, admin_token
+):
+    """Test the image set hash endpoint
+
+    Args:
+        client (TestClient): the test client
+        image_id (int): the ID of the uploaded image
+        uploaded_image_hash (str): the hash of the uploaded image
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": image_id, "hash": uploaded_image2_hash},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set hash of image {image_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": 100, "hash": uploaded_image2_hash},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No image with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": image_id, "hash": "invalid_hash"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No image with hash invalid_hash found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": image_id, "hash": uploaded_image2_hash},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": image_id, "hash": uploaded_image2_hash},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": "this is not an integer", "hash": uploaded_image2_hash},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/image/set/hash",
+        json={"image_id": image_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_description(
+    client, sub_question_id, student_token, admin_token
+):
+    """Test the sub-question set description endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/description",
+        json={"sub_question_id": sub_question_id, "description": "Updated description"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert (
+        response.json()["msg"] == f"Set description of sub-question {sub_question_id}"
+    )
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/description",
+        json={"sub_question_id": 100, "description": "Updated description"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/description",
+        json={"sub_question_id": sub_question_id, "description": "Updated description"},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/description",
+        json={"sub_question_id": sub_question_id, "description": "Updated description"},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/description",
+        json={
+            "sub_question_id": "this is not an integer",
+            "description": "Updated description",
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/description",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_options(client, sub_question_id, student_token, admin_token):
+    """Test the sub-question set options endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/options",
+        json={"sub_question_id": sub_question_id, "options": ["Option 1", "Option 2"]},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set options of sub-question {sub_question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/options",
+        json={"sub_question_id": 100, "options": ["Option 1", "Option 2"]},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/options",
+        json={"sub_question_id": sub_question_id, "options": ["Option 1", "Option 2"]},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/options",
+        json={"sub_question_id": sub_question_id, "options": ["Option 1", "Option 2"]},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/options",
+        json={
+            "sub_question_id": "this is not an integer",
+            "options": ["Option 1", "Option 2"],
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/options",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_answer(client, sub_question_id, student_token, admin_token):
+    """Test the sub-question set answer endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/answer",
+        json={"sub_question_id": sub_question_id, "answer": "Updated answer"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set answer of sub-question {sub_question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/answer",
+        json={"sub_question_id": 100, "answer": "Updated answer"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/answer",
+        json={"sub_question_id": sub_question_id, "answer": "Updated answer"},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/answer",
+        json={"sub_question_id": sub_question_id, "answer": "Updated answer"},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/answer",
+        json={"sub_question_id": "this is not an integer", "answer": "Updated answer"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/answer",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_concept(client, sub_question_id, student_token, admin_token):
+    """Test the sub-question set concept endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/concept",
+        json={
+            "sub_question_id": sub_question_id,
+            "concept": ConceptType.MEASUREMENT.value,
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set concept of sub-question {sub_question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/concept",
+        json={"sub_question_id": 100, "concept": ConceptType.MEASUREMENT.value},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/concept",
+        json={
+            "sub_question_id": sub_question_id,
+            "concept": ConceptType.MEASUREMENT.value,
+        },
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/concept",
+        json={
+            "sub_question_id": sub_question_id,
+            "concept": ConceptType.MEASUREMENT.value,
+        },
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/concept",
+        json={
+            "sub_question_id": "this is not an integer",
+            "concept": ConceptType.MEASUREMENT.value,
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/concept",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_process(client, sub_question_id, student_token, admin_token):
+    """Test the sub-question set process endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/process",
+        json={
+            "sub_question_id": sub_question_id,
+            "process": ProcessType.FORMULATE.value,
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set process of sub-question {sub_question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/process",
+        json={"sub_question_id": 100, "process": ProcessType.FORMULATE.value},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/process",
+        json={
+            "sub_question_id": sub_question_id,
+            "process": ProcessType.FORMULATE.value,
+        },
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/process",
+        json={
+            "sub_question_id": sub_question_id,
+            "process": ProcessType.FORMULATE.value,
+        },
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/process",
+        json={
+            "sub_question_id": "this is not an integer",
+            "process": ProcessType.FORMULATE.value,
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/process",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_keywords(client, sub_question_id, student_token, admin_token):
+    """Test the sub-question set keywords endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/keywords",
+        json={
+            "sub_question_id": sub_question_id,
+            "keywords": ["Keyword 1", "Keyword 2"],
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set keywords of sub-question {sub_question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/keywords",
+        json={"sub_question_id": 100, "keywords": ["Keyword 1", "Keyword 2"]},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/keywords",
+        json={
+            "sub_question_id": sub_question_id,
+            "keywords": ["Keyword 1", "Keyword 2"],
+        },
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/keywords",
+        json={
+            "sub_question_id": sub_question_id,
+            "keywords": ["Keyword 1", "Keyword 2"],
+        },
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/keywords",
+        json={
+            "sub_question_id": "this is not an integer",
+            "keywords": ["Keyword 1", "Keyword 2"],
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/keywords",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_sub_question_set_image(
+    client, sub_question_id, image_id, student_token, admin_token
+):
+    """Test the sub-question set image endpoint
+
+    Args:
+        client (TestClient): the test client
+        sub_question_id (int): the ID of the sub-question
+        image_id (int): the ID of the image
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": sub_question_id, "image_id": image_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set image of sub-question {sub_question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": 100, "image_id": image_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No sub-question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": sub_question_id, "image_id": 100},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No image with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": sub_question_id, "image_id": image_id},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": sub_question_id, "image_id": image_id},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": "this is not an integer", "image_id": image_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/sub-question/set/image",
+        json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content

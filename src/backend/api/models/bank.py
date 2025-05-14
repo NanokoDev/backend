@@ -31,3 +31,73 @@ class QuestionApproveRequest(BaseModel):
     """API model for question approval request"""
 
     question_id: int
+
+
+class ImageAddRequest(BaseModel):
+    """API model for image addition request"""
+
+    description: str
+    hash: str
+
+
+class ImageDescriptionRequest(BaseModel):
+    """API model for image description request"""
+
+    image_id: int
+    description: str
+
+
+class ImageHashRequest(BaseModel):
+    """API model for image hash request"""
+
+    image_id: int
+    hash: str
+
+
+class SubQuestionDescriptionRequest(BaseModel):
+    """API model for sub-question description request"""
+
+    sub_question_id: int
+    description: str
+
+
+class SubQuestionOptionsRequest(BaseModel):
+    """API model for sub-question options request"""
+
+    sub_question_id: int
+    options: List[str]
+
+
+class SubQuestionAnswerRequest(BaseModel):
+    """API model for sub-question answer request"""
+
+    sub_question_id: int
+    answer: str
+
+
+class SubQuestionConceptRequest(BaseModel):
+    """API model for sub-question concept request"""
+
+    sub_question_id: int
+    concept: ConceptType
+
+
+class SubQuestionProcessRequest(BaseModel):
+    """API model for sub-question process request"""
+
+    sub_question_id: int
+    process: ProcessType
+
+
+class SubQuestionKeywordsRequest(BaseModel):
+    """API model for sub-question keywords request"""
+
+    sub_question_id: int
+    keywords: List[str]
+
+
+class SubQuestionImageRequest(BaseModel):
+    """API model for sub-question image request"""
+
+    sub_question_id: int
+    image_id: int

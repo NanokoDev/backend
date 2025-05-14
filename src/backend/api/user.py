@@ -2,7 +2,7 @@ import jwt
 from typing import Annotated, List
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta, timezone
-from fastapi import Depends, HTTPException, status, APIRouter, Body
+from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from backend.config import config
@@ -11,7 +11,20 @@ from backend.api.base import get_current_user_generator
 from backend.exceptions.bank import SubQuestionIdInvalid
 from backend.db import user_manager, llm_manager, question_manager
 from backend.exceptions.llm import LLMRequestError, InvalidLLMResponse
-from backend.api.models.user import Token, User, FeedBack, Class, Assignment
+from backend.api.models.user import (
+    User,
+    Token,
+    Class,
+    FeedBack,
+    Assignment,
+    JoinClassRequest,
+    CreateClassRequest,
+    UserRegisterRequest,
+    SubmitAnswerRequest,
+    ResetPasswordRequest,
+    CreateAssignmentRequest,
+    AssignAssignmentRequest,
+)
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,
@@ -115,31 +128,23 @@ async def read_users_me(
 
 @router.post("/register", response_model=User)
 async def register_user(
-    username: str = Body(...),
-    email: str = Body(...),
-    display_name: str = Body(...),
-    password: str = Body(...),
-    permission: Permission = Body(...),
+    request: UserRegisterRequest,
 ):
     """Register a new user.
 
     Args:
-        username (str): Username of the user.
-        email (str): Email of the user.
-        display_name (str): Display name of the user.
-        password (str): Password of the user.
-        permission (Permission): Permission level of the user.
+        request (UserRegisterRequest): The request containing user registration details
 
     Returns:
         User: The created user object.
     """
     try:
         db_user = await user_manager.create_user(
-            username=username,
-            email=email,
-            display_name=display_name,
-            password=password,
-            permission=permission,
+            username=request.username,
+            email=request.email,
+            display_name=request.display_name,
+            password=request.password,
+            permission=request.permission,
         )
         return User(
             id=db_user.id,
@@ -177,17 +182,13 @@ async def register_user(
 
 @router.post("/submit", response_model=FeedBack)
 async def submit_answer(
-    sub_question_id: int = Body(...),
-    assignment_id: int = Body(...),
-    answer: str = Body(...),
+    request: SubmitAnswerRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Submit an answer for a sub-question.
 
     Args:
-        sub_question_id (int): ID of the sub-question.
-        assignment_id (int): ID of the assignment.
-        answer (str): The answer to the sub-question.
+        request (SubmitAnswerRequest): The request containing sub_question_id, assignment_id and answer
         current_user (User): Current user from the token.
 
     Raises:
@@ -198,8 +199,8 @@ async def submit_answer(
     """
     try:
         feedback = await llm_manager.get_sub_question_feedback(
-            sub_question_id=sub_question_id,
-            answer=answer,
+            sub_question_id=request.sub_question_id,
+            answer=request.answer,
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
@@ -225,9 +226,9 @@ async def submit_answer(
     try:
         await user_manager.add_completed_sub_question(
             user_id=current_user.id,
-            sub_question_id=sub_question_id,
-            assignment_id=assignment_id,
-            answer=answer,
+            sub_question_id=request.sub_question_id,
+            assignment_id=request.assignment_id,
+            answer=request.answer,
             performance=feedback.performance,
             feedback=feedback.comment,
         )
@@ -265,15 +266,13 @@ async def submit_answer(
 
 @router.post("/reset_password")
 async def reset_password(
-    old_password: str = Body(...),
-    new_password: str = Body(...),
+    request: ResetPasswordRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Reset the password for the current user.
 
     Args:
-        old_password (str): The old password of the user.
-        new_password (str): The new password to set for the user.
+        request (ResetPasswordRequest): The request containing old and new passwords
         current_user (User): Current user from the token.
 
     Raises:
@@ -282,19 +281,21 @@ async def reset_password(
     Returns:
         JSONResponse: A JSON response indicating the success of the password reset.
     """
-    if not await user_manager.is_correct_password(current_user.id, old_password):
+    if not await user_manager.is_correct_password(
+        current_user.id, request.old_password
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Old password is incorrect",
         )
-    if old_password == new_password:
+    if request.old_password == request.new_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password cannot be the same as old password",
         )
     await user_manager.reset_password(
         user_id=current_user.id,
-        new_password=new_password,
+        new_password=request.new_password,
     )
     return JSONResponse(
         content={"message": "Password reset successfully"},
@@ -304,15 +305,13 @@ async def reset_password(
 
 @router.post("/create_class", response_model=Class)
 async def create_class(
-    class_name: str = Body(...),
-    enter_code: str = Body(...),
+    request: CreateClassRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Create a new class.
 
     Args:
-        class_name (str): Name of the class.
-        enter_code (str): Enter code for the class.
+        request (CreateClassRequest): The request containing class_name and enter_code
         current_user (User): Current user from the token.
 
     Raises:
@@ -323,8 +322,8 @@ async def create_class(
     """
     try:
         class_ = await user_manager.create_class(
-            class_name=class_name,
-            enter_code=enter_code,
+            class_name=request.class_name,
+            enter_code=request.enter_code,
             teacher_id=current_user.id,
         )
         return Class(
@@ -357,15 +356,13 @@ async def create_class(
 
 @router.post("/join_class", response_model=Class)
 async def join_class(
-    class_name: str = Body(...),
-    enter_code: str = Body(...),
+    request: JoinClassRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Join a class.
 
     Args:
-        class_name (str): Name of the class.
-        enter_code (str): Enter code for the class.
+        request (JoinClassRequest): The request containing class_name and enter_code
         current_user (User): Current user from the token.
 
     Raises:
@@ -375,7 +372,7 @@ async def join_class(
         Class: The joined class object.
     """
     try:
-        class_ = await user_manager.get_class_by_name(class_name=class_name)
+        class_ = await user_manager.get_class_by_name(class_name=request.class_name)
         if not class_:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -385,7 +382,7 @@ async def join_class(
         joint_class = await user_manager.join_class(
             user_id=current_user.id,
             class_id=class_.id,
-            enter_code=enter_code,
+            enter_code=request.enter_code,
         )
         return Class(
             id=joint_class.id,
@@ -464,21 +461,30 @@ async def leave_class(
 
 @router.post("/create_assignment", response_model=Assignment)
 async def create_assignment(
-    assignment_name: str = Body(...),
-    description: str = Body(...),
-    due_date: datetime = Body(...),
-    question_ids: List[int] = Body(...),
+    request: CreateAssignmentRequest,
     current_user: User = Depends(get_current_user),
 ):
+    """Create a new assignment.
+
+    Args:
+        request (CreateAssignmentRequest): The request containing assignment details
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the user does not have permission to create an assignment.
+
+    Returns:
+        Assignment: The created assignment object.
+    """
     try:
         questions = await question_manager.get_questions_by_ids(
-            question_ids=question_ids
+            question_ids=request.question_ids
         )
         assignment = await user_manager.create_assignment(
             teacher_id=current_user.id,
-            assignment_name=assignment_name,
-            assignment_description=description,
-            due_date=due_date,
+            assignment_name=request.assignment_name,
+            assignment_description=request.description,
+            due_date=request.due_date,
             questions=questions,
         )
         return Assignment(
@@ -506,14 +512,25 @@ async def create_assignment(
 
 @router.post("/assign_assignment")
 async def assign_assignment(
-    assignment_id: int = Body(...),
-    class_id: int = Body(...),
+    request: AssignAssignmentRequest,
     current_user: User = Depends(get_current_user),
 ):
+    """Assign an assignment to a class.
+
+    Args:
+        request (AssignAssignmentRequest): The request containing assignment_id and class_id
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the user does not have permission to assign the assignment.
+
+    Returns:
+        JSONResponse: A JSON response indicating the success of the assignment.
+    """
     try:
         await user_manager.assign_assignment_to_class(
-            assignment_id=assignment_id,
-            class_id=class_id,
+            assignment_id=request.assignment_id,
+            class_id=request.class_id,
             teacher_id=current_user.id,
         )
         return JSONResponse(

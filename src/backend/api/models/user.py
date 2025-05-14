@@ -1,5 +1,6 @@
-from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional, List
 
 from backend.types.user import Permission, Performance
 
@@ -50,3 +51,58 @@ class Assignment(BaseModel):
     name: str
     description: str
     teacher_id: int
+
+
+class UserRegisterRequest(BaseModel):
+    """User registration request model"""
+
+    username: str
+    email: str
+    display_name: str
+    password: str
+    permission: Permission
+
+
+class SubmitAnswerRequest(BaseModel):
+    """Submit answer request model"""
+
+    sub_question_id: int
+    assignment_id: int
+    answer: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Reset password request model"""
+
+    old_password: str
+    new_password: str
+
+
+class CreateClassRequest(BaseModel):
+    """Create class request model"""
+
+    class_name: str
+    enter_code: str
+
+
+class JoinClassRequest(BaseModel):
+    """Join class request model"""
+
+    class_name: str
+    enter_code: str
+
+
+class CreateAssignmentRequest(BaseModel):
+    """Create assignment request model"""
+
+    assignment_name: str
+    description: str
+    due_date: datetime
+    question_ids: List[int]
+
+
+class AssignAssignmentRequest(BaseModel):
+    """Assign assignment request model"""
+
+    assignment_id: int
+    class_id: int

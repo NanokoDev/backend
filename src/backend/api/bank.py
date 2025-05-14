@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi import APIRouter, UploadFile, Body, HTTPException, Depends, status
+from fastapi import APIRouter, UploadFile, HTTPException, Depends, status
 
 from backend.config import config
 from backend.db import question_manager
@@ -11,7 +11,21 @@ from backend.types.user import Permission
 from backend.api.base import get_current_user_generator
 from backend.types.question import ConceptType, ProcessType
 from backend.db.models.bank import SubQuestion as DBSubQuestion
-from backend.api.models.bank import Question, SubQuestion, QuestionApproveRequest
+from backend.api.models.bank import (
+    Question,
+    SubQuestion,
+    ImageAddRequest,
+    ImageHashRequest,
+    QuestionApproveRequest,
+    ImageDescriptionRequest,
+    SubQuestionImageRequest,
+    SubQuestionAnswerRequest,
+    SubQuestionConceptRequest,
+    SubQuestionOptionsRequest,
+    SubQuestionProcessRequest,
+    SubQuestionKeywordsRequest,
+    SubQuestionDescriptionRequest,
+)
 from backend.exceptions.bank import (
     ImageIdInvalid,
     QuestionIdInvalid,
@@ -71,15 +85,13 @@ async def upload_image(
 
 @router.post("/image/add")
 async def add_image(
-    description: str = Body(...),
-    hash: str = Body(...),
+    request: ImageAddRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Add an image to the database
 
     Args:
-        description (str, optional): The description of the image
-        hash (str, optional): The hash of the image
+        request (ImageAddRequest): The request containing description and hash
         current_user (User): The user who uploaded the image
 
     Raises:
@@ -103,35 +115,33 @@ async def add_image(
             detail="No image_store_path configured!",
         )
 
-    images = list(config.image_store_path.glob(f"{hash}.*"))
+    images = list(config.image_store_path.glob(f"{request.hash}.*"))
     if not images:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No image with hash {hash} found!",
+            detail=f"No image with hash {request.hash} found!",
         )
     try:
         image = await question_manager.add_image(
-            description=description, path=images[0]
+            description=request.description, path=images[0]
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add image with hash {hash}: {e}",
+            detail=f"Failed to add image with hash {request.hash}: {e}",
         ) from e
     return JSONResponse({"image_id": image.id})
 
 
 @router.post("/image/set/description")
 async def set_image_description(
-    image_id: int = Body(...),
-    description: str = Body(...),
+    request: ImageDescriptionRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the description of an image
 
     Args:
-        image_id (int): The id of the image to set
-        description (str): The description to set
+        request (ImageDescriptionRequest): The request containing image_id and description
         current_user (User): The user who set the description
 
     Raises:
@@ -150,28 +160,26 @@ async def set_image_description(
 
     try:
         await question_manager.set_image_description(
-            image_id=image_id, description=description
+            image_id=request.image_id, description=request.description
         )
     except ImageIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No image with id {image_id} found!",
+            detail=f"No image with id {request.image_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set description of image {image_id}"})
+    return JSONResponse({"msg": f"Set description of image {request.image_id}"})
 
 
 @router.post("/image/set/hash")
 async def set_image_hash(
-    image_id: int = Body(...),
-    hash: str = Body(...),
+    request: ImageHashRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the hash of an image
 
     Args:
-        image_id (int): The id of the image to set
-        hash (str): The hash to set
+        request (ImageHashRequest): The request containing image_id and hash
         current_user (User): The user who set the hash
 
     Raises:
@@ -188,22 +196,26 @@ async def set_image_hash(
             detail="You do not have permission to set hashes!",
         )
 
-    image_path = config.image_store_path / f"{hash}.{config.image_store_path.suffix}"
+    image_path = (
+        config.image_store_path / f"{request.hash}.{config.image_store_path.suffix}"
+    )
     if not image_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No image with hash {hash} found!",
+            detail=f"No image with hash {request.hash} found!",
         )
 
     try:
-        await question_manager.set_image_hash(image_id=image_id, path=image_path)
+        await question_manager.set_image_hash(
+            image_id=request.image_id, path=image_path
+        )
     except ImageIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No image with id {image_id} found!",
+            detail=f"No image with id {request.image_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set hash of image {image_id}"})
+    return JSONResponse({"msg": f"Set hash of image {request.image_id}"})
 
 
 @router.get("/image/get/description")
@@ -329,15 +341,13 @@ async def add_question(
 
 @router.post("/sub-question/set/description")
 async def set_sub_question_description(
-    sub_question_id: int = Body(...),
-    description: str = Body(...),
+    request: SubQuestionDescriptionRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the description of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        description (str): The description to set
+        request (SubQuestionDescriptionRequest): The request containing sub_question_id and description
         current_user (User): The user who set the description
 
     Raises:
@@ -356,28 +366,28 @@ async def set_sub_question_description(
 
     try:
         await question_manager.set_sub_question_description(
-            sub_question_id=sub_question_id, description=description
+            sub_question_id=request.sub_question_id, description=request.description
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sub-question with id {sub_question_id} found!",
+            detail=f"No sub-question with id {request.sub_question_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set description of sub-question {sub_question_id}"})
+    return JSONResponse(
+        {"msg": f"Set description of sub-question {request.sub_question_id}"}
+    )
 
 
 @router.post("/sub-question/set/options")
 async def set_sub_question_options(
-    sub_question_id: int = Body(...),
-    options: List[str] = Body(...),
+    request: SubQuestionOptionsRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the options of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        options (List[str]): The options to set
+        request (SubQuestionOptionsRequest): The request containing sub_question_id and options
         current_user (User): The user who set the options
 
     Raises:
@@ -396,28 +406,28 @@ async def set_sub_question_options(
 
     try:
         await question_manager.set_sub_question_options(
-            sub_question_id=sub_question_id, options=options
+            sub_question_id=request.sub_question_id, options=request.options
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sub-question with id {sub_question_id} found!",
+            detail=f"No sub-question with id {request.sub_question_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set options of sub-question {sub_question_id}"})
+    return JSONResponse(
+        {"msg": f"Set options of sub-question {request.sub_question_id}"}
+    )
 
 
 @router.post("/sub-question/set/answer")
 async def set_sub_question_answer(
-    sub_question_id: int = Body(...),
-    answer: str = Body(...),
+    request: SubQuestionAnswerRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the answer of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        answer (str): The answer to set
+        request (SubQuestionAnswerRequest): The request containing sub_question_id and answer
         current_user (User): The user who set the answer
 
     Raises:
@@ -436,28 +446,28 @@ async def set_sub_question_answer(
 
     try:
         await question_manager.set_sub_question_answer(
-            sub_question_id=sub_question_id, answer=answer
+            sub_question_id=request.sub_question_id, answer=request.answer
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sub-question with id {sub_question_id} found!",
+            detail=f"No sub-question with id {request.sub_question_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set answer of sub-question {sub_question_id}"})
+    return JSONResponse(
+        {"msg": f"Set answer of sub-question {request.sub_question_id}"}
+    )
 
 
 @router.post("/sub-question/set/concept")
 async def set_sub_question_concept(
-    sub_question_id: int = Body(...),
-    concept: ConceptType = Body(...),
+    request: SubQuestionConceptRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the concept of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        concept (ConceptType): The concept to set
+        request (SubQuestionConceptRequest): The request containing sub_question_id and concept
         current_user (User): The user who set the concept
 
     Raises:
@@ -476,28 +486,28 @@ async def set_sub_question_concept(
 
     try:
         await question_manager.set_sub_question_concept(
-            sub_question_id=sub_question_id, concept=concept
+            sub_question_id=request.sub_question_id, concept=request.concept
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sub-question with id {sub_question_id} found!",
+            detail=f"No sub-question with id {request.sub_question_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set concept of sub-question {sub_question_id}"})
+    return JSONResponse(
+        {"msg": f"Set concept of sub-question {request.sub_question_id}"}
+    )
 
 
 @router.post("/sub-question/set/process")
 async def set_sub_question_process(
-    sub_question_id: int = Body(...),
-    process: ProcessType = Body(...),
+    request: SubQuestionProcessRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the process of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        process (ProcessType): The process to set
+        request (SubQuestionProcessRequest): The request containing sub_question_id and process
         current_user (User): The user who set the process
 
     Raises:
@@ -516,28 +526,28 @@ async def set_sub_question_process(
 
     try:
         await question_manager.set_sub_question_process(
-            sub_question_id=sub_question_id, process=process
+            sub_question_id=request.sub_question_id, process=request.process
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sub-question with id {sub_question_id} found!",
+            detail=f"No sub-question with id {request.sub_question_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set process of sub-question {sub_question_id}"})
+    return JSONResponse(
+        {"msg": f"Set process of sub-question {request.sub_question_id}"}
+    )
 
 
 @router.post("/sub-question/set/keywords")
 async def set_sub_question_keywords(
-    sub_question_id: int = Body(...),
-    keywords: List[str] = Body(...),
+    request: SubQuestionKeywordsRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the keywords of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        keywords (List[str]): The keywords to set
+        request (SubQuestionKeywordsRequest): The request containing sub_question_id and keywords
         current_user (User): The user who set the keywords
 
     Raises:
@@ -556,28 +566,28 @@ async def set_sub_question_keywords(
 
     try:
         await question_manager.set_sub_question_keywords(
-            sub_question_id=sub_question_id, keywords=keywords
+            sub_question_id=request.sub_question_id, keywords=request.keywords
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sub-question with id {sub_question_id} found!",
+            detail=f"No sub-question with id {request.sub_question_id} found!",
         )
 
-    return JSONResponse({"msg": f"Set keywords of sub-question {sub_question_id}"})
+    return JSONResponse(
+        {"msg": f"Set keywords of sub-question {request.sub_question_id}"}
+    )
 
 
 @router.post("/sub-question/set/image")
 async def set_sub_question_image(
-    sub_question_id: int = Body(...),
-    image_id: int = Body(...),
+    request: SubQuestionImageRequest,
     current_user: User = Depends(get_current_user),
 ):
     """Set the image of a sub-question
 
     Args:
-        sub_question_id (int): The id of the sub-question to set
-        image_id (int): The id of the image to set
+        request (SubQuestionImageRequest): The request containing sub_question_id and image_id
         current_user (User): The user who set the image
 
     Raises:
@@ -597,20 +607,56 @@ async def set_sub_question_image(
 
     try:
         await question_manager.set_sub_question_image(
-            sub_question_id=sub_question_id, image_id=image_id
+            sub_question_id=request.sub_question_id, image_id=request.image_id
+        )
+    except SubQuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No sub-question with id {request.sub_question_id} found!",
+        )
+    except ImageIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {request.image_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set image of sub-question {request.sub_question_id}"})
+
+
+@router.delete("/sub-question/delete/image")
+async def delete_sub_question_image(
+    sub_question_id: int, current_user: User = Depends(get_current_user)
+):
+    """Delete the image of a sub-question
+
+    Args:
+        sub_question_id (int): The id of the sub-question
+        current_user (User): The user who deleted the image
+
+    Raises:
+        HTTPException: You do not have permission to delete images
+        HTTPException: No sub-question with id found
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete images!",
+        )
+
+    try:
+        await question_manager.delete_sub_question_image(
+            sub_question_id=sub_question_id
         )
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No sub-question with id {sub_question_id} found!",
         )
-    except ImageIdInvalid:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No image with id {image_id} found!",
-        )
 
-    return JSONResponse({"msg": f"Set image of sub-question {sub_question_id}"})
+    return JSONResponse({"msg": f"Deleted image of sub-question {sub_question_id}"})
 
 
 @router.get("/question/get", response_model=List[Question])
@@ -637,16 +683,6 @@ async def get_questions(
     Returns:
         List[Question]: The list of questions
     """
-    if question_id is not None and not isinstance(question_id, int):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="question_id should be an integer!",
-        )
-    if source is not None and not isinstance(source, str):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="source should be a string!",
-        )
 
     if question_id is not None:
         question = await question_manager.get_question(question_id)
@@ -742,11 +778,6 @@ async def approve_question(
         )
 
     question_id = question_approve_request.question_id
-    if question_id is not None and not isinstance(question_id, int):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="question_id should be an integer!",
-        )
 
     try:
         result = await question_manager.approve_question(question_id=question_id)
@@ -785,12 +816,6 @@ async def delete_question(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to delete questions!",
-        )
-
-    if question_id is not None and not isinstance(question_id, int):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="question_id should be an integer!",
         )
 
     try:

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile
 
 from backend.config import config
 from backend.db import question_manager
@@ -16,7 +16,6 @@ from backend.api.models.bank import (
     SubQuestion,
     ImageAddRequest,
     ImageHashRequest,
-    ImageUploadRequest,
     QuestionApproveRequest,
     ImageDescriptionRequest,
     SubQuestionImageRequest,
@@ -42,12 +41,12 @@ get_current_user = get_current_user_generator(
 
 @router.post("/image/upload")
 async def upload_image(
-    request: ImageUploadRequest, current_user: User = Depends(get_current_user)
+    file: UploadFile, current_user: User = Depends(get_current_user)
 ):
     """Upload an image to the server and return its hash
 
     Args:
-        request (ImageUploadRequest): the request containing the image file
+        file (UploadFile): the image file to upload
         current_user (User): the user who uploaded the image
 
     Raises:
@@ -64,11 +63,11 @@ async def upload_image(
             detail="You do not have permission to upload images!",
         )
 
-    hash_str = await calculate_hash(request.file)
-    if request.file.content_type not in {"image/jpeg", "image/png"}:
+    hash_str = await calculate_hash(file)
+    if file.content_type not in {"image/jpeg", "image/png"}:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported content_type: {request.file.content_type}! Please upload a JPEG or PNG",
+            detail=f"Unsupported content_type: {file.content_type}! Please upload a JPEG or PNG",
         )
     if config.image_store_path is None:
         raise HTTPException(
@@ -76,12 +75,11 @@ async def upload_image(
             detail="No image_store_path configured!",
         )
     image_path = (
-        config.image_store_path
-        / f"{hash_str}.{request.file.content_type.split('/')[-1]}"
+        config.image_store_path / f"{hash_str}.{file.content_type.split('/')[-1]}"
     )
     with open(image_path, "wb") as f:
-        await request.file.seek(0)
-        f.write(await request.file.read())
+        await file.seek(0)
+        f.write(await file.read())
     return JSONResponse({"hash": hash_str})
 
 

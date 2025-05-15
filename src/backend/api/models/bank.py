@@ -1,3 +1,4 @@
+from fastapi import UploadFile
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -31,6 +32,12 @@ class QuestionApproveRequest(BaseModel):
     """API model for question approval request"""
 
     question_id: int
+
+
+class ImageUploadRequest(BaseModel):
+    """API model for image upload request"""
+
+    file: UploadFile
 
 
 class ImageAddRequest(BaseModel):

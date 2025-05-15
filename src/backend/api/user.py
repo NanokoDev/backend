@@ -264,7 +264,7 @@ async def submit_answer(
     )
 
 
-@router.post("/reset_password")
+@router.post("/password/reset")
 async def reset_password(
     request: ResetPasswordRequest,
     current_user: User = Depends(get_current_user),
@@ -303,7 +303,7 @@ async def reset_password(
     )
 
 
-@router.post("/create_class", response_model=Class)
+@router.post("/class/create", response_model=Class)
 async def create_class(
     request: CreateClassRequest,
     current_user: User = Depends(get_current_user),
@@ -354,7 +354,7 @@ async def create_class(
         )
 
 
-@router.post("/join_class", response_model=Class)
+@router.post("/class/join", response_model=Class)
 async def join_class(
     request: JoinClassRequest,
     current_user: User = Depends(get_current_user),
@@ -419,7 +419,7 @@ async def join_class(
         )
 
 
-@router.post("/leave_class")
+@router.post("/class/leave")
 async def leave_class(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
@@ -459,7 +459,7 @@ async def leave_class(
         )
 
 
-@router.post("/create_assignment", response_model=Assignment)
+@router.post("/assignment/create", response_model=Assignment)
 async def create_assignment(
     request: CreateAssignmentRequest,
     current_user: User = Depends(get_current_user),
@@ -510,7 +510,7 @@ async def create_assignment(
         )
 
 
-@router.post("/assign_assignment")
+@router.post("/assignment/assign")
 async def assign_assignment(
     request: AssignAssignmentRequest,
     current_user: User = Depends(get_current_user),
@@ -559,7 +559,7 @@ async def assign_assignment(
         )
 
 
-@router.get("/get_assignments", response_model=List[Assignment])
+@router.get("/assignments", response_model=List[Assignment])
 async def get_assignments(
     current_user: Annotated[User, Depends(get_current_user)],
 ):

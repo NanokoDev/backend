@@ -286,7 +286,7 @@ async def service_teacher_token(client, teacher):
 async def test_get_performances(
     client, service_teacher_token, student, student_token, teacher_token
 ):
-    """Test the /api/v1/service/get_performances endpoint
+    """Test the /api/v1/service/performances endpoint
 
     Args:
         client (TestClient): the test client
@@ -297,7 +297,7 @@ async def test_get_performances(
     """
     # Expected cases
     resp = client.get(
-        "/api/v1/service/get_performances",
+        "/api/v1/service/performances",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -344,7 +344,7 @@ async def test_get_performances(
 
     # Boundary cases
     resp = client.get(
-        "/api/v1/service/get_performances",
+        "/api/v1/service/performances",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "user_id": student.id,
@@ -353,7 +353,7 @@ async def test_get_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_performances",
+        "/api/v1/service/performances",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "user_id": student.id,
@@ -362,7 +362,7 @@ async def test_get_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_performances",
+        "/api/v1/service/performances",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": 12345678,
@@ -372,14 +372,14 @@ async def test_get_performances(
 
     # Unexpected cases
     resp = client.get(
-        "/api/v1/service/get_performances",
+        "/api/v1/service/performances",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={},
     )
     assert resp.status_code == 422, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_performances",
+        "/api/v1/service/performances",
         params={
             "user_id": student.id,
         },
@@ -391,7 +391,7 @@ async def test_get_performances(
 async def test_get_best_performances(
     client, service_teacher_token, student, student_token, teacher_token
 ):
-    """Test the /api/v1/service/get_best_performances endpoint
+    """Test the /api/v1/service/performances/best endpoint
 
     Args:
         client (TestClient): the test client
@@ -402,7 +402,7 @@ async def test_get_best_performances(
     """
     # Expected cases
     resp = client.get(
-        "/api/v1/service/get_best_performances",
+        "/api/v1/service/performances/best",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -449,7 +449,7 @@ async def test_get_best_performances(
 
     # Boundary cases
     resp = client.get(
-        "/api/v1/service/get_best_performances",
+        "/api/v1/service/performances/best",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "user_id": student.id,
@@ -458,7 +458,7 @@ async def test_get_best_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_best_performances",
+        "/api/v1/service/performances/best",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "user_id": student.id,
@@ -467,7 +467,7 @@ async def test_get_best_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_best_performances",
+        "/api/v1/service/performances/best",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": 12345678,
@@ -477,14 +477,14 @@ async def test_get_best_performances(
 
     # Unexpected cases
     resp = client.get(
-        "/api/v1/service/get_best_performances",
+        "/api/v1/service/performances/best",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={},
     )
     assert resp.status_code == 422, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_best_performances",
+        "/api/v1/service/performances/best",
         params={
             "user_id": student.id,
         },
@@ -496,7 +496,7 @@ async def test_get_best_performances(
 async def test_get_average_performances(
     client, service_teacher_token, student, student_token, teacher_token
 ):
-    """Test the /api/v1/service/get_average_performances endpoint
+    """Test the /api/v1/service/performances/average endpoint
 
     Args:
         client (TestClient): the test client
@@ -507,7 +507,7 @@ async def test_get_average_performances(
     """
     # Expected cases
     resp = client.get(
-        "/api/v1/service/get_average_performances",
+        "/api/v1/service/performances/average",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -554,7 +554,7 @@ async def test_get_average_performances(
 
     # Boundary cases
     resp = client.get(
-        "/api/v1/service/get_average_performances",
+        "/api/v1/service/performances/average",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "user_id": student.id,
@@ -563,7 +563,7 @@ async def test_get_average_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_average_performances",
+        "/api/v1/service/performances/average",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "user_id": student.id,
@@ -572,7 +572,7 @@ async def test_get_average_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_average_performances",
+        "/api/v1/service/performances/average",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": 12345678,
@@ -582,14 +582,14 @@ async def test_get_average_performances(
 
     # Unexpected cases
     resp = client.get(
-        "/api/v1/service/get_average_performances",
+        "/api/v1/service/performances/average",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={},
     )
     assert resp.status_code == 422, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_average_performances",
+        "/api/v1/service/performances/average",
         params={
             "user_id": student.id,
         },
@@ -601,7 +601,7 @@ async def test_get_average_performances(
 async def test_get_recent_best_performances(
     client, service_teacher_token, student, student_token, teacher_token
 ):
-    """Test the /api/v1/service/get_recent_best_performances endpoint
+    """Test the /api/v1/service/performances/best/recent endpoint
 
     Args:
         client (TestClient): the test client
@@ -612,7 +612,7 @@ async def test_get_recent_best_performances(
     """
     # Expected cases
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -662,7 +662,7 @@ async def test_get_recent_best_performances(
     }, f"Unexpected response: {resp.json()}"
 
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -713,7 +713,7 @@ async def test_get_recent_best_performances(
 
     # Boundary cases
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "user_id": student.id,
@@ -726,7 +726,7 @@ async def test_get_recent_best_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "user_id": student.id,
@@ -739,7 +739,7 @@ async def test_get_recent_best_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": 12345678,
@@ -753,14 +753,14 @@ async def test_get_recent_best_performances(
 
     # Unexpected cases
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={},
     )
     assert resp.status_code == 422, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_recent_best_performances",
+        "/api/v1/service/performances/best/recent",
         params={
             "user_id": student.id,
             "start_time": (
@@ -776,7 +776,7 @@ async def test_get_recent_best_performances(
 async def test_get_recent_average_performances(
     client, service_teacher_token, student, student_token, teacher_token
 ):
-    """Test the /api/v1/service/get_recent_average_performances endpoint
+    """Test the /api/v1/service/performances/average/recent endpoint
 
     Args:
         client (TestClient): the test client
@@ -787,7 +787,7 @@ async def test_get_recent_average_performances(
     """
     # Expected cases
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -837,7 +837,7 @@ async def test_get_recent_average_performances(
     }, f"Unexpected response: {resp.json()}"
 
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -888,7 +888,7 @@ async def test_get_recent_average_performances(
 
     # Boundary cases
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "user_id": student.id,
@@ -901,7 +901,7 @@ async def test_get_recent_average_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "user_id": student.id,
@@ -914,7 +914,7 @@ async def test_get_recent_average_performances(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": 12345678,
@@ -928,14 +928,14 @@ async def test_get_recent_average_performances(
 
     # Unexpected cases
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={},
     )
     assert resp.status_code == 422, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_recent_average_performances",
+        "/api/v1/service/performances/average/recent",
         params={
             "user_id": student.id,
             "start_time": (
@@ -951,7 +951,7 @@ async def test_get_recent_average_performances(
 async def test_get_performance_trends(
     client, service_teacher_token, student, student_token, teacher_token
 ):
-    """Test the /api/v1/service/get_performance_trends endpoint
+    """Test the /api/v1/service/performances/trends endpoint
 
     Args:
         client (TestClient): the test client
@@ -1000,7 +1000,7 @@ async def test_get_performance_trends(
 
     # Expected cases
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -1014,7 +1014,7 @@ async def test_get_performance_trends(
     assert resp.json() == expected_trends, f"Unexpected response: {resp.json()}"
 
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": student.id,
@@ -1025,7 +1025,7 @@ async def test_get_performance_trends(
 
     # Boundary cases
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "user_id": student.id,
@@ -1038,7 +1038,7 @@ async def test_get_performance_trends(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "user_id": student.id,
@@ -1051,7 +1051,7 @@ async def test_get_performance_trends(
     assert resp.status_code == 403, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={
             "user_id": 12345678,
@@ -1065,14 +1065,14 @@ async def test_get_performance_trends(
 
     # Unexpected cases
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         headers={"Authorization": f"Bearer {service_teacher_token}"},
         params={},
     )
     assert resp.status_code == 422, resp.content
 
     resp = client.get(
-        "/api/v1/service/get_performance_trends",
+        "/api/v1/service/performances/trends",
         params={
             "user_id": student.id,
             "start_time": (

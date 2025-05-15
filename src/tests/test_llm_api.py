@@ -78,7 +78,7 @@ def sub_question_id(client, admin_token, question_id):
 
 
 def test_get_hint(client, student_token, httpx_mock):
-    """Test api/v1/llm/get_hint endpoint
+    """Test api/v1/llm/hint endpoint
 
     Args:
         client (TestClient): The test client
@@ -89,7 +89,7 @@ def test_get_hint(client, student_token, httpx_mock):
 
     # Expected cases
     response = client.get(
-        "/api/v1/llm/get_hint",
+        "/api/v1/llm/hint",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "sub_question_id": 1,
@@ -101,7 +101,7 @@ def test_get_hint(client, student_token, httpx_mock):
 
     # Boundary cases
     response = client.get(
-        "/api/v1/llm/get_hint",
+        "/api/v1/llm/hint",
         headers={"Authorization": f"Bearer {student_token}"},
         params={
             "sub_question_id": 112012,
@@ -111,7 +111,7 @@ def test_get_hint(client, student_token, httpx_mock):
     assert response.status_code == 404, f"Failed to get 404: {response.content}"
 
     response = client.get(
-        "/api/v1/llm/get_hint",
+        "/api/v1/llm/hint",
         params={
             "sub_question_id": 1,
             "question": "I dont have any idea about this question",
@@ -121,7 +121,7 @@ def test_get_hint(client, student_token, httpx_mock):
 
     # Unexpected cases
     response = client.post(
-        "/api/v1/llm/get_hint",
+        "/api/v1/llm/hint",
         headers={"Authorization": f"Bearer {student_token}"},
         json={
             "sub_question_id": 1,

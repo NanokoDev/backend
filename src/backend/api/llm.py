@@ -16,7 +16,7 @@ get_current_user = get_current_user_generator(
 )
 
 
-@router.get("/get_hint")
+@router.get("/hint")
 async def get_hint(
     sub_question_id: int,
     question: str,

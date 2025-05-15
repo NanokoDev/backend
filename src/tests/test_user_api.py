@@ -95,7 +95,7 @@ def class_id(client, teacher_token):
     if class_id_cache is not None:
         return class_id_cache
     response = client.post(
-        "/api/v1/user/create_class",
+        "/api/v1/user/class/create",
         json={
             "class_name": "Test Class",
             "enter_code": "test_code",
@@ -126,7 +126,7 @@ def assignment_id(client, teacher_token, question_id, class_id):
     class_id = class_id  # Ensure the teacher is teaching a class
 
     response = client.post(
-        "/api/v1/user/create_assignment",
+        "/api/v1/user/assignment/create",
         json={
             "assignment_name": "Test Assignment",
             "description": "This is a test assignment",
@@ -338,7 +338,7 @@ def test_register(client):
 
 
 def test_create_class(client, teacher_token, student_token):
-    """Test the /api/v1/user/create_class endpoint
+    """Test the /api/v1/user/class/create endpoint
 
     Args:
         client (TestClient): The test client
@@ -349,7 +349,7 @@ def test_create_class(client, teacher_token, student_token):
     global class_id_cache, class_name_cache
     if class_id_cache is None:
         response = client.post(
-            "/api/v1/user/create_class",
+            "/api/v1/user/class/create",
             json={
                 "class_name": "Test Class",
                 "enter_code": "test_code",
@@ -365,7 +365,7 @@ def test_create_class(client, teacher_token, student_token):
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/create_class",
+        "/api/v1/user/class/create",
         json={
             "class_name": "Test Class2",
             "enter_code": "test_code",
@@ -377,7 +377,7 @@ def test_create_class(client, teacher_token, student_token):
     )
 
     response = client.post(
-        "/api/v1/user/create_class",
+        "/api/v1/user/class/create",
         json={
             "class_name": "Test Class",  # Duplicate class name
             "enter_code": "test_code",
@@ -390,7 +390,7 @@ def test_create_class(client, teacher_token, student_token):
 
     # Unexpected cases
     response = client.get(
-        "/api/v1/user/create_class",
+        "/api/v1/user/class/create",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "class_name": "Test Clas2s",
@@ -403,7 +403,7 @@ def test_create_class(client, teacher_token, student_token):
 
 
 def test_create_assignment(client, teacher_token, student_token, question_id):
-    """Test the /api/v1/user/create_assignment endpoint
+    """Test the /api/v1/user/assignment/create endpoint
 
     Args:
         client (TestClient): The test client
@@ -415,7 +415,7 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
     global assignment_id_cache
     if assignment_id_cache is None:
         response = client.post(
-            "/api/v1/user/create_assignment",
+            "/api/v1/user/assignment/create",
             json={
                 "assignment_name": "Test Assignment",
                 "description": "This is a test assignment",
@@ -432,7 +432,7 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/create_assignment",
+        "/api/v1/user/assignment/create",
         json={
             "assignment_name": "Test Assignment2",
             "description": "This is a test assignment",
@@ -447,7 +447,7 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
 
     # Unexpected cases
     response = client.get(
-        "/api/v1/user/create_assignment",
+        "/api/v1/user/assignment/create",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={
             "assignment_name": "Test Assignment2",
@@ -461,7 +461,7 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
     )
 
     response = client.post(
-        "/api/v1/user/create_assignment",
+        "/api/v1/user/assignment/create",
         json={
             "assignment_name": "Test Assignment2",
             "description": "This is a test assignment",
@@ -476,7 +476,7 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
 
 
 def test_join_class(client, student_token, teacher_token, admin_token, class_id):
-    """Test the /api/v1/user/join_class endpoint
+    """Test the /api/v1/user/class/join endpoint
 
     Args:
         client (TestClient): The test client
@@ -493,7 +493,7 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
 
     # Expected cases
     response = client.post(
-        "/api/v1/user/join_class",
+        "/api/v1/user/class/join",
         json={"enter_code": "test_code", "class_name": class_name_cache},
         headers={"Authorization": f"Bearer {student_token}"},
     )
@@ -501,7 +501,7 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/join_class",
+        "/api/v1/user/class/join",
         json={"enter_code": "test_code", "class_name": class_name_cache},
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
@@ -510,7 +510,7 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
     )
 
     response = client.post(
-        "/api/v1/user/join_class",
+        "/api/v1/user/class/join",
         json={
             "enter_code": "test_code",
             "class_name": "Test Class2",
@@ -522,7 +522,7 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
     )
 
     response = client.post(
-        "/api/v1/user/join_class",
+        "/api/v1/user/class/join",
         json={
             "enter_code": "wrong_code",  # incorrect enter code
             "class_name": class_name_cache,
@@ -537,7 +537,7 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
 
     # Unexpected cases
     response = client.get(
-        "/api/v1/user/join_class",
+        "/api/v1/user/class/join",
         headers={"Authorization": f"Bearer {student_token}"},
         params={"enter_code": "test_code"},
     )
@@ -549,7 +549,7 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
 def test_assign_assignment(
     client, teacher_token, student_token, assignment_id, class_id
 ):
-    """Test the /api/v1/user/assign_assignment endpoint
+    """Test the /api/v1/user/assignment/assign endpoint
 
     Args:
         client (TestClient): The test client
@@ -560,7 +560,7 @@ def test_assign_assignment(
     """
     # Expected cases
     response = client.post(
-        "/api/v1/user/assign_assignment",
+        "/api/v1/user/assignment/assign",
         json={"assignment_id": assignment_id, "class_id": class_id},
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
@@ -570,7 +570,7 @@ def test_assign_assignment(
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/assign_assignment",
+        "/api/v1/user/assignment/assign",
         json={"assignment_id": assignment_id, "class_id": class_id},
         headers={"Authorization": f"Bearer {student_token}"},
     )
@@ -579,7 +579,7 @@ def test_assign_assignment(
     )
 
     response = client.post(
-        "/api/v1/user/assign_assignment",
+        "/api/v1/user/assignment/assign",
         json={
             "assignment_id": assignment_id,
             "class_id": 99999999,  # Invalid class id
@@ -591,7 +591,7 @@ def test_assign_assignment(
     )
 
     response = client.post(
-        "/api/v1/user/assign_assignment",
+        "/api/v1/user/assignment/assign",
         json={
             "assignment_id": 99999999,  # Invalid assignment id
             "class_id": class_id,
@@ -604,7 +604,7 @@ def test_assign_assignment(
 
     # Unexpected cases
     response = client.get(
-        "/api/v1/user/assign_assignment",
+        "/api/v1/user/assignment/assign",
         headers={"Authorization": f"Bearer {teacher_token}"},
         params={"assignment_id": assignment_id, "class_id": class_id},
     )
@@ -613,7 +613,7 @@ def test_assign_assignment(
     )
 
     response = client.post(
-        "/api/v1/user/assign_assignment",
+        "/api/v1/user/assignment/assign",
         json={
             "class_id": class_id,
             # missing assignment_id field
@@ -628,7 +628,7 @@ def test_assign_assignment(
 def test_get_assignments(
     client, student_token, teacher_token, admin_token, assignment_id
 ):
-    """Test the /api/v1/user/get_assignments endpoint
+    """Test the /api/v1/user/assignments endpoint
 
     Args:
         client (TestClient): The test client
@@ -639,7 +639,7 @@ def test_get_assignments(
     """
     # Expected cases
     response = client.get(
-        "/api/v1/user/get_assignments",
+        "/api/v1/user/assignments",
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 200, f"Failed to get assignment: {response.content}"
@@ -651,7 +651,7 @@ def test_get_assignments(
     )
 
     response = client.get(
-        "/api/v1/user/get_assignments",
+        "/api/v1/user/assignments",
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert response.status_code == 200, f"Failed to get assignment: {response.content}"
@@ -664,7 +664,7 @@ def test_get_assignments(
 
     # Boundary cases
     response = client.get(
-        "/api/v1/user/get_assignments",
+        "/api/v1/user/assignments",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, f"Failed to get assignment: {response.content}"
@@ -675,7 +675,7 @@ def test_get_assignments(
 
     # Unexpected cases
     response = client.post(
-        "/api/v1/user/get_assignments",
+        "/api/v1/user/assignments",
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 405, (
@@ -683,7 +683,7 @@ def test_get_assignments(
     )
 
     response = client.get(
-        "/api/v1/user/get_assignments",
+        "/api/v1/user/assignments",
     )
     assert response.status_code == 401, (
         f"Failed to get 401 unauthorised: {response.content}"
@@ -794,7 +794,7 @@ def test_submit(
 
 
 def test_reset_password(client):
-    """Test the /api/v1/user/reset_password endpoint
+    """Test the /api/v1/user/password/reset endpoint
 
     Args:
         client (TestClient): The test client
@@ -831,7 +831,7 @@ def test_reset_password(client):
 
     # Expected cases
     response = client.post(
-        "/api/v1/user/reset_password",
+        "/api/v1/user/password/reset",
         json={
             "old_password": "first_password",
             "new_password": "new_password",
@@ -854,7 +854,7 @@ def test_reset_password(client):
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/reset_password",
+        "/api/v1/user/password/reset",
         json={
             "old_password": "wrong_password",  # Incorrect old password
             "new_password": "new_password",
@@ -866,7 +866,7 @@ def test_reset_password(client):
     )
 
     response = client.post(
-        "/api/v1/user/reset_password",
+        "/api/v1/user/password/reset",
         json={
             "old_password": "new_password",
             "new_password": "new_password",  # New password is the same as old password
@@ -879,7 +879,7 @@ def test_reset_password(client):
 
 
 def test_leave_class(client):
-    """Test the /api/v1/user/leave_class endpoint
+    """Test the /api/v1/user/class/leave endpoint
 
     Args:
         client (TestClient): The test client
@@ -945,7 +945,7 @@ def test_leave_class(client):
 
     # Create a class for the teacher
     response = client.post(
-        "/api/v1/user/create_class",
+        "/api/v1/user/class/create",
         json={
             "class_name": "Leave Class",
             "enter_code": "leave_code",
@@ -959,7 +959,7 @@ def test_leave_class(client):
 
     # Join the class as a student
     response = client.post(
-        "/api/v1/user/join_class",
+        "/api/v1/user/class/join",
         json={"enter_code": "leave_code", "class_name": class_name},
         headers={"Authorization": f"Bearer {student_token}"},
     )
@@ -970,7 +970,7 @@ def test_leave_class(client):
     # Leave the class as a student
     # Expected cases
     response = client.post(
-        "/api/v1/user/leave_class",
+        "/api/v1/user/class/leave",
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 200, (
@@ -979,7 +979,7 @@ def test_leave_class(client):
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/leave_class",
+        "/api/v1/user/class/leave",
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert response.status_code == 403, (
@@ -987,7 +987,7 @@ def test_leave_class(client):
     )  # the teacher is not enrolled in a class, so cannot leave
 
     response = client.post(
-        "/api/v1/user/leave_class",
+        "/api/v1/user/class/leave",
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, (
@@ -996,14 +996,14 @@ def test_leave_class(client):
 
     # Unexpected cases
     response = client.get(
-        "/api/v1/user/leave_class",
+        "/api/v1/user/class/leave",
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 405, (
         f"Failed to get 405 method not allowed: {response.content}"
     )
     response = client.post(
-        "/api/v1/user/leave_class",
+        "/api/v1/user/class/leave",
         # Missing Authorization header
     )
     assert response.status_code == 401, (

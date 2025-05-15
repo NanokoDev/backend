@@ -23,7 +23,7 @@ get_current_user = get_current_user_generator(
 analyzer = Analyzer(user_manager=user_manager)
 
 
-@router.get("/get_performances", response_model=PerformancesData)
+@router.get("/performances", response_model=PerformancesData)
 async def get_performances(
     user_id: int,
     user: User = Depends(get_current_user),
@@ -75,7 +75,7 @@ async def get_performances(
         )
 
 
-@router.get("/get_best_performances", response_model=Performances)
+@router.get("/performances/best", response_model=Performances)
 async def get_best_performances(
     user_id: int,
     user: User = Depends(get_current_user),
@@ -127,7 +127,7 @@ async def get_best_performances(
         )
 
 
-@router.get("/get_average_performances", response_model=Performances)
+@router.get("/performances/average", response_model=Performances)
 async def get_average_performances(
     user_id: int,
     user: User = Depends(get_current_user),
@@ -179,7 +179,7 @@ async def get_average_performances(
         )
 
 
-@router.get("/get_recent_best_performances", response_model=Performances)
+@router.get("/performances/best/recent", response_model=Performances)
 async def get_recent_best_performances(
     user_id: int,
     start_time: datetime.datetime,
@@ -236,7 +236,7 @@ async def get_recent_best_performances(
         )
 
 
-@router.get("/get_recent_average_performances", response_model=Performances)
+@router.get("/performances/average/recent", response_model=Performances)
 async def get_recent_average_performances(
     user_id: int,
     start_time: datetime.datetime,
@@ -293,7 +293,7 @@ async def get_recent_average_performances(
         )
 
 
-@router.get("/get_performance_trends", response_model=PerformanceTrends)
+@router.get("/performances/trends", response_model=PerformanceTrends)
 async def get_performance_trends(
     user_id: int,
     start_time: Optional[datetime.datetime] = None,

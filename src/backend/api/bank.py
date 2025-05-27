@@ -706,6 +706,7 @@ async def get_questions(
                     concept=sub_question.concept,
                     process=sub_question.process,
                     keywords=sub_question.keywords,
+                    options=sub_question.options,
                     image_id=sub_question.image_id,
                 )
                 for sub_question in question.sub_questions
@@ -741,6 +742,7 @@ async def get_questions(
                         concept=sub_question.concept,
                         process=sub_question.process,
                         keywords=sub_question.keywords,
+                        options=sub_question.options,
                         image_id=sub_question.image_id,
                     )
                     for sub_question in question.sub_questions

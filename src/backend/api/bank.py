@@ -16,6 +16,7 @@ from backend.api.models.bank import (
     SubQuestion,
     ImageAddRequest,
     ImageHashRequest,
+    QuestionNameRequest,
     QuestionApproveRequest,
     ImageDescriptionRequest,
     SubQuestionImageRequest,
@@ -318,7 +319,7 @@ async def add_question(
             )
         )
 
-    question_ = await question_manager.add_question(question.source)
+    question_ = await question_manager.add_question(question.name, question.source)
 
     try:
         await question_manager.set_question(
@@ -662,6 +663,7 @@ async def delete_sub_question_image(
 @router.get("/question/get", response_model=List[Question])
 async def get_questions(
     question_id: Optional[int] = None,
+    name: Optional[str] = None,
     source: Optional[str] = None,
     concept: Optional[ConceptType] = None,
     process: Optional[ProcessType] = None,
@@ -671,6 +673,7 @@ async def get_questions(
 
     Args:
         question_id (Optional[int], optional): The question id of the question. Defaults to None.
+        name (Optional[str], optional): The name of the question. Defaults to None.
         source (Optional[str], optional): The source of the question. Defaults to None.
         concept (Optional[ConceptType], optional): The concept of questions. Defaults to None.
         process (Optional[ProcessType], optional): The process of questions. Defaults to None.
@@ -691,6 +694,7 @@ async def get_questions(
 
         question_ = Question(
             id=question.id,
+            name=question.name,
             source=question.source,
             is_audited=question.is_audited,
             is_deleted=question.is_deleted,
@@ -717,6 +721,7 @@ async def get_questions(
         return [question_]
     else:
         questions = await question_manager.get_question_by_values(
+            name=name,
             source=source,
             concept=concept,
             process=process,
@@ -724,6 +729,7 @@ async def get_questions(
         questions_ = [
             Question(
                 id=question.id,
+                name=question.name,
                 source=question.source,
                 is_audited=question.is_audited,
                 is_deleted=question.is_deleted,
@@ -792,6 +798,43 @@ async def approve_question(
     return JSONResponse(
         {"msg": f"Question {question_id} has already been approved or deleted"}
     )
+
+
+@router.post("/question/set/name")
+async def set_question_name(
+    request: QuestionNameRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Set the name of a question
+
+    Args:
+        request (QuestionNameRequest): The request containing question_id and name
+        current_user (User): The user who set the name
+
+    Raises:
+        HTTPException: You do not have permission to set names
+        HTTPException: No question with id found
+
+    Returns:
+        JSONResponse: The result of the operation
+    """
+    if current_user.permission < Permission.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to set names!",
+        )
+
+    try:
+        await question_manager.set_question_name(
+            question_id=request.question_id, name=request.name
+        )
+    except QuestionIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No question with id {request.question_id} found!",
+        )
+
+    return JSONResponse({"msg": f"Set name of question {request.question_id}"})
 
 
 @router.delete("/question/delete")

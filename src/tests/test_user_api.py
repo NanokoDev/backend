@@ -25,6 +25,7 @@ def question_id(client, admin_token):
     if question_id_cache is not None:
         return question_id_cache
     question = {
+        "name": "User Test Question",
         "source": "testing",
         "sub_questions": [
             {

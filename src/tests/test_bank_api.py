@@ -105,6 +105,7 @@ def question_id(client, image_id, admin_token):
         int: the ID of the added question
     """
     question = {
+        "name": "Test Question",
         "source": "testing",
         "sub_questions": [
             {
@@ -324,6 +325,7 @@ def test_question_add(client, image_id, student_token, admin_token):
     """
     # Expected cases
     question = {
+        "name": "Test Question",
         "source": "testing",
         "sub_questions": [
             {
@@ -393,6 +395,7 @@ def test_question_get(client, question_id, student_token, admin_token):
     assert response.status_code == 200, response.content
     assert len(response.json()) > 0, response.content
     assert response.json()[0]["id"] == question_id, response.content
+    assert response.json()[0]["name"] == "Test Question", response.content
     assert response.json()[0]["source"] == "testing", response.content
 
     response = client.get(
@@ -430,6 +433,22 @@ def test_question_get(client, question_id, student_token, admin_token):
     response = client.get(
         "/api/v1/bank/question/get",
         params={"concept": ConceptType.MEASUREMENT.value},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json() == []
+
+    response = client.get(
+        "/api/v1/bank/question/get",
+        params={"name": "Test Question"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert len(response.json()) > 0, response.content
+
+    response = client.get(
+        "/api/v1/bank/question/get",
+        params={"name": "Non-existent Question"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
@@ -1168,6 +1187,62 @@ def test_sub_question_set_image(
     response = client.post(
         "/api/v1/bank/sub-question/set/image",
         json={"sub_question_id": sub_question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+
+def test_question_set_name(client, question_id, student_token, admin_token):
+    """Test the question set name endpoint
+
+    Args:
+        client (TestClient): the test client
+        question_id (int): the ID of the question
+        student_token (str): the student token
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    response = client.post(
+        "/api/v1/bank/question/set/name",
+        json={"question_id": question_id, "name": "Updated Test Question"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert response.json()["msg"] == f"Set name of question {question_id}"
+
+    # Boundary cases
+    response = client.post(
+        "/api/v1/bank/question/set/name",
+        json={"question_id": 100, "name": "Updated Test Question"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+    assert "No question with id 100 found" in response.json()["detail"]
+
+    response = client.post(
+        "/api/v1/bank/question/set/name",
+        json={"question_id": question_id, "name": "Updated Test Question"},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 403, response.content
+
+    response = client.post(
+        "/api/v1/bank/question/set/name",
+        json={"question_id": question_id, "name": "Updated Test Question"},
+    )
+    assert response.status_code == 401, response.content
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/bank/question/set/name",
+        json={"question_id": "this is not an integer", "name": "Updated Test Question"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 422, response.content
+
+    response = client.post(
+        "/api/v1/bank/question/set/name",
+        json={"question_id": question_id},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content

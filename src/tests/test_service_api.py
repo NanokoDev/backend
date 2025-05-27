@@ -19,6 +19,7 @@ def question_id(client, admin_token):
         int: the ID of the added question
     """
     question = {
+        "name": "Service Test Question",
         "source": "testing",
         "sub_questions": [
             {

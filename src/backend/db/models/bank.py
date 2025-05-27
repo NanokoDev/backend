@@ -63,6 +63,7 @@ class Question(Base):
     __tablename__ = "question"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
     source: Mapped[str]
     is_audited: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
@@ -70,4 +71,4 @@ class Question(Base):
     sub_questions: Mapped[List["SubQuestion"]] = relationship(back_populates="question")
 
     def __repr__(self):
-        return f"Question(id={self.id!r}, source={self.source!r}, is_audited={self.is_audited!r}, is_deleted={self.is_deleted!r})"
+        return f"Question(id={self.id!r}, name={self.name!r}, source={self.source!r}, is_audited={self.is_audited!r}, is_deleted={self.is_deleted!r})"

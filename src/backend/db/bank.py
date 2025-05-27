@@ -76,16 +76,19 @@ class QuestionManager:
                 session.add(sub_question)
         return sub_question
 
-    async def add_question(self, source: str) -> Question:
+    async def add_question(self, name: str, source: str) -> Question:
         """Add a question to the database
 
         Args:
+            name (str): The name of the question
             source (str): The source of the question
 
         Returns:
             Question: The question object that was added to the database
         """
-        question = Question(source=source, is_audited=False, is_deleted=False)
+        question = Question(
+            name=name, source=source, is_audited=False, is_deleted=False
+        )
         async with self._Session() as session:
             async with session.begin():
                 session.add(question)
@@ -319,6 +322,28 @@ class QuestionManager:
 
                 sub_question.keywords = keywords
 
+    async def set_question_name(self, question_id: int, name: str) -> None:
+        """Set the name for a question
+
+        Args:
+            question_id (int): The ID of the question
+            name (str): The new name for the question
+
+        Raises:
+            QuestionIdInvalid: If the question ID is invalid
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                question_result = await session.execute(
+                    select(Question).filter(Question.id == question_id)
+                )
+                question = question_result.scalars().first()
+
+                if question is None:
+                    raise QuestionIdInvalid(question_id)
+
+                question.name = name
+
     async def set_image_description(self, image_id: int, description: str) -> None:
         """Set the description for an image
 
@@ -414,13 +439,15 @@ class QuestionManager:
 
     async def get_question_by_values(
         self,
-        source: Optional[str],
-        concept: Optional[ConceptType],
-        process: Optional[ProcessType],
+        name: Optional[str] = None,
+        source: Optional[str] = None,
+        concept: Optional[ConceptType] = None,
+        process: Optional[ProcessType] = None,
     ) -> List[Question]:
         """Get questions by their values
 
         Args:
+            name (Optional[str]): The name of the question
             source (Optional[str]): The source of the question
             concept (Optional[ConceptType]): Subquestion's concept type
             process (Optional[ProcessType]): Subquestion's process type
@@ -430,6 +457,8 @@ class QuestionManager:
         """
         async with self._Session() as session:
             filters = []
+            if name is not None:
+                filters.append(Question.name == name)
             if source is not None:
                 filters.append(Question.source == source)
             if concept is not None:

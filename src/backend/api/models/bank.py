@@ -21,6 +21,7 @@ class Question(BaseModel):
     """API model for question"""
 
     id: Optional[int] = None
+    name: str
     source: str
     is_audited: Optional[bool] = None
     is_deleted: Optional[bool] = None
@@ -31,6 +32,13 @@ class QuestionApproveRequest(BaseModel):
     """API model for question approval request"""
 
     question_id: int
+
+
+class QuestionNameRequest(BaseModel):
+    """API model for question name request"""
+
+    question_id: int
+    name: str
 
 
 class ImageAddRequest(BaseModel):

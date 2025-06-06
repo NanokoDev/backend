@@ -51,6 +51,7 @@ class Assignment(BaseModel):
     name: str
     description: str
     teacher_id: int
+    due_date: Optional[datetime] = None
 
 
 class UserRegisterRequest(BaseModel):
@@ -97,7 +98,6 @@ class CreateAssignmentRequest(BaseModel):
 
     assignment_name: str
     description: str
-    due_date: datetime
     question_ids: List[int]
 
 
@@ -106,3 +106,4 @@ class AssignAssignmentRequest(BaseModel):
 
     assignment_id: int
     class_id: int
+    due_date: datetime

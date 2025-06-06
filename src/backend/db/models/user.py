@@ -5,7 +5,7 @@ from sqlalchemy.orm import mapped_column, relationship, Mapped
 
 from backend.db.models.base import Base
 from backend.types.user import Permission, Performance
-from backend.db.models.base import class_assignment_table, assignment_question_table
+from backend.db.models.base import assignment_question_table
 
 if TYPE_CHECKING:
     from backend.db.models.bank import SubQuestion, Question
@@ -79,6 +79,26 @@ class User(Base):
         return f"User(id={self.id!r}, username={self.username!r}, permission={self.permission.name!r})"
 
 
+class ClassAssignment(Base):
+    """Model for assignment-class relationship with due date"""
+
+    __tablename__ = "class_assignment"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    class_id: Mapped[int] = mapped_column(ForeignKey("class.id"))
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignment.id"))
+    due_date: Mapped[DateTime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc)
+    )
+
+    class_: Mapped["Class"] = relationship(back_populates="class_assignments")
+    assignment: Mapped["Assignment"] = relationship(back_populates="class_assignments")
+
+    def __repr__(self) -> str:
+        return f"ClassAssignment(id={self.id!r}, class_id={self.class_id!r}, assignment_id={self.assignment_id!r})"
+
+
 class Class(Base):
     """Class model with a teacher and students"""
 
@@ -87,9 +107,9 @@ class Class(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     enter_code: Mapped[str] = mapped_column(String(10))
-    assignments: Mapped[List["Assignment"]] = relationship(
-        secondary=class_assignment_table,
-    )  # many to many
+    class_assignments: Mapped[List[ClassAssignment]] = relationship(
+        back_populates="class_"
+    )
 
     teacher_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     students: Mapped[List[User]] = relationship(
@@ -113,7 +133,6 @@ class Assignment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50))
     description: Mapped[str] = mapped_column(String(1000))
-    due_date: Mapped[DateTime] = mapped_column(DateTime)
 
     teacher_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     teacher: Mapped[User] = relationship(
@@ -123,6 +142,9 @@ class Assignment(Base):
         "CompletedSubQuestion",
         back_populates="assignment",
         foreign_keys="CompletedSubQuestion.assignment_id",
+    )
+    class_assignments: Mapped[List[ClassAssignment]] = relationship(
+        back_populates="assignment"
     )
 
     questions: Mapped[List["Question"]] = relationship(

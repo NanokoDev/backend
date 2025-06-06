@@ -9,7 +9,13 @@ from backend.db.base import DatabaseManager
 from backend.types.user import Permission, Performance
 from backend.exceptions.bank import SubQuestionIdInvalid
 from backend.db.models.bank import SubQuestion, Question
-from backend.db.models.user import User, CompletedSubQuestion, Class, Assignment
+from backend.db.models.user import (
+    User,
+    Class,
+    Assignment,
+    ClassAssignment,
+    CompletedSubQuestion,
+)
 from backend.exceptions.user import (
     UserIdInvalid,
     ClassIdInvalid,
@@ -223,7 +229,7 @@ class UserManager:
                     raise UserIdInvalid(user_id)
 
                 if user.enrolled_class_id is not None:
-                    await session.refresh(user.enrolled_class, ["assignments"])
+                    await session.refresh(user.enrolled_class, ["class_assignments"])
 
                 assignment_result = await session.execute(
                     select(Assignment).filter(Assignment.id == assignment_id)
@@ -245,7 +251,8 @@ class UserManager:
                     raise SubQuestionIdInvalid(sub_question_id)
 
                 assignment_ids = [
-                    assignment.id for assignment in user.enrolled_class.assignments
+                    class_assignment.assignment_id
+                    for class_assignment in user.enrolled_class.class_assignments
                 ]
                 if assignment.id not in assignment_ids:
                     raise PermissionError(
@@ -492,7 +499,6 @@ class UserManager:
         teacher_id: int,
         assignment_name: str,
         assignment_description: str,
-        due_date: datetime.datetime,
         questions: List[Question],
     ) -> Assignment:
         """Create a new assignment for a teacher.
@@ -501,7 +507,6 @@ class UserManager:
             teacher_id (int): The ID of the teacher.
             assignment_name (str): The name of the assignment.
             assignment_description (str): The description of the assignment.
-            due_date (datetime.datetime): The due date of the assignment.
             questions (List[Question]): The list of questions for the assignment.
 
         Raises:
@@ -525,7 +530,6 @@ class UserManager:
                 assignment = Assignment(
                     name=assignment_name,
                     description=assignment_description,
-                    due_date=due_date,
                     teacher_id=teacher_id,
                 )
                 assignment.questions.extend(questions)
@@ -533,14 +537,19 @@ class UserManager:
                 return assignment
 
     async def assign_assignment_to_class(
-        self, assignment_id: int, class_id: int, teacher_id: int
+        self,
+        assignment_id: int,
+        class_id: int,
+        teacher_id: int,
+        due_date: datetime.datetime,
     ) -> None:
-        """Assign an assignment to a class.
+        """Assign an assignment to a class with a due date.
 
         Args:
             assignment_id (int): The ID of the assignment.
             class_id (int): The ID of the class.
             teacher_id (int): The ID of the teacher.
+            due_date (datetime.datetime): The due date for this assignment in this class.
 
         Raises:
             AssignmentIdInvalid: If the assignment with the given ID is not found.
@@ -565,15 +574,30 @@ class UserManager:
                     )
 
                 class_result = await session.execute(
-                    select(Class)
-                    .options(joinedload(Class.assignments))
-                    .filter(Class.id == class_id)
+                    select(Class).filter(Class.id == class_id)
                 )
                 class_ = class_result.scalars().first()
                 if class_ is None:
                     raise ClassIdInvalid(class_id)
 
-                class_.assignments.append(assignment)
+                # Check if assignment is already assigned to this class
+                existing_assignment = await session.execute(
+                    select(ClassAssignment).filter(
+                        ClassAssignment.assignment_id == assignment_id,
+                        ClassAssignment.class_id == class_id,
+                    )
+                )
+                if existing_assignment.scalars().first() is not None:
+                    raise PermissionError(
+                        f"Assignment {assignment_id} is already assigned to class {class_id}."
+                    )
+
+                class_assignment = ClassAssignment(
+                    class_id=class_id,
+                    assignment_id=assignment_id,
+                    due_date=due_date,
+                )
+                session.add(class_assignment)
                 return None
 
     async def get_assignments_by_teacher_id(self, teacher_id: int) -> List[Assignment]:
@@ -608,7 +632,7 @@ class UserManager:
 
     async def get_assignments_by_class_id(
         self, class_id: int, user_id: int
-    ) -> List[Assignment]:
+    ) -> List[ClassAssignment]:
         """Get all assignments for a class.
 
         Args:
@@ -621,12 +645,16 @@ class UserManager:
             PermissionError: If the user is not enrolled in the class or is the teacher of the class.
 
         Returns:
-            List[Assignment]: A list of assignments for the class.
+            List[ClassAssignment]: A list of class assignments for the class.
         """
         async with self._Session() as session:
             class_result = await session.execute(
                 select(Class)
-                .options(joinedload(Class.assignments))
+                .options(
+                    joinedload(Class.class_assignments).joinedload(
+                        ClassAssignment.assignment
+                    )
+                )
                 .filter(Class.id == class_id)
             )
             class_ = class_result.scalars().first()
@@ -644,10 +672,12 @@ class UserManager:
                     f"User {user.id} is not enrolled in class {class_.id} or is the teacher of the class."
                 )
 
-            return class_.assignments
+            return [class_assignment for class_assignment in class_.class_assignments]
 
-    async def get_assignments_by_student_id(self, student_id: int) -> List[Assignment]:
-        """Get all assignments for a student.
+    async def get_assignments_by_student_id(
+        self, student_id: int
+    ) -> List[ClassAssignment]:
+        """Get all class assignments for a student.
 
         Args:
             student_id (int): The ID of the student.
@@ -656,13 +686,15 @@ class UserManager:
             UserIdInvalid: If the student with the given ID is not found.
 
         Returns:
-            List[Assignment]: A list of assignments for the student.
+            List[ClassAssignment]: A list of class assignments for the student.
         """
         async with self._Session() as session:
             student_result = await session.execute(
                 select(User)
                 .options(
-                    joinedload(User.enrolled_class),
+                    joinedload(User.enrolled_class)
+                    .joinedload(Class.class_assignments)
+                    .joinedload(ClassAssignment.assignment),
                 )
                 .filter(User.id == student_id)
             )
@@ -670,11 +702,11 @@ class UserManager:
             if student is None:
                 raise UserIdInvalid(student_id)
 
-            if student.enrolled_class_id is not None:
-                await session.refresh(student.enrolled_class, ["assignments"])
-
             return (
-                [assignment for assignment in student.enrolled_class.assignments]
+                [
+                    class_assignment
+                    for class_assignment in student.enrolled_class.class_assignments
+                ]
                 if student.enrolled_class
                 else []
             )

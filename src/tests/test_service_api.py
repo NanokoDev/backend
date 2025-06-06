@@ -202,13 +202,13 @@ async def assignment(teacher, class_, question):
             teacher_id=teacher.id,
             assignment_name="Service Assignment",
             assignment_description="Service Assignment Description",
-            due_date=datetime.datetime.now() + datetime.timedelta(days=7),
             questions=[question],
         )
         await user_manager.assign_assignment_to_class(
             class_id=class_.id,
             assignment_id=assignment.id,
             teacher_id=teacher.id,
+            due_date=datetime.datetime.now() + datetime.timedelta(days=7),
         )
     return assignment
 

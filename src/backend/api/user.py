@@ -484,7 +484,6 @@ async def create_assignment(
             teacher_id=current_user.id,
             assignment_name=request.assignment_name,
             assignment_description=request.description,
-            due_date=request.due_date,
             questions=questions,
         )
         return Assignment(
@@ -532,6 +531,7 @@ async def assign_assignment(
             assignment_id=request.assignment_id,
             class_id=request.class_id,
             teacher_id=current_user.id,
+            due_date=request.due_date,
         )
         return JSONResponse(
             content={"message": "Assignment assigned to class successfully"},
@@ -576,19 +576,29 @@ async def get_assignments(
             assignments = await user_manager.get_assignments_by_teacher_id(
                 teacher_id=current_user.id
             )
+            return [
+                Assignment(
+                    id=assignment.id,
+                    name=assignment.name,
+                    description=assignment.description,
+                    teacher_id=assignment.teacher_id,
+                )
+                for assignment in assignments
+            ]
         else:
             assignments = await user_manager.get_assignments_by_student_id(
                 student_id=current_user.id
             )
-        return [
-            Assignment(
-                id=assignment.id,
-                name=assignment.name,
-                description=assignment.description,
-                teacher_id=assignment.teacher_id,
-            )
-            for assignment in assignments
-        ]
+            return [
+                Assignment(
+                    id=assignment.assignment.id,
+                    name=assignment.assignment.name,
+                    description=assignment.assignment.description,
+                    teacher_id=assignment.assignment.teacher_id,
+                    due_date=assignment.due_date,
+                )
+                for assignment in assignments
+            ]
     except UserIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

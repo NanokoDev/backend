@@ -131,7 +131,6 @@ def assignment_id(client, teacher_token, question_id, class_id):
         json={
             "assignment_name": "Test Assignment",
             "description": "This is a test assignment",
-            "due_date": "2077-05-31T23:40:03.266Z",
             "question_ids": [question_id],
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
@@ -420,7 +419,6 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
             json={
                 "assignment_name": "Test Assignment",
                 "description": "This is a test assignment",
-                "due_date": "2077-05-31T23:40:03.266Z",
                 "question_ids": [question_id],
             },
             headers={"Authorization": f"Bearer {teacher_token}"},
@@ -437,7 +435,6 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
         json={
             "assignment_name": "Test Assignment2",
             "description": "This is a test assignment",
-            "due_date": "2077-05-31T23:40:03.266Z",
             "question_ids": [question_id],
         },
         headers={"Authorization": f"Bearer {student_token}"},
@@ -453,7 +450,6 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
         params={
             "assignment_name": "Test Assignment2",
             "description": "This is a test assignment",
-            "due_date": "2077-05-31T23:40:03.266Z",
             "question_ids": [question_id],
         },
     )
@@ -466,7 +462,6 @@ def test_create_assignment(client, teacher_token, student_token, question_id):
         json={
             "assignment_name": "Test Assignment2",
             "description": "This is a test assignment",
-            "due_date": "2077-05-31T23:40:03.266Z",
             # Missing question_ids field
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
@@ -562,7 +557,11 @@ def test_assign_assignment(
     # Expected cases
     response = client.post(
         "/api/v1/user/assignment/assign",
-        json={"assignment_id": assignment_id, "class_id": class_id},
+        json={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+            "due_date": "2077-05-31T23:40:03.266Z",
+        },
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert response.status_code == 200, (
@@ -572,7 +571,11 @@ def test_assign_assignment(
     # Boundary cases
     response = client.post(
         "/api/v1/user/assignment/assign",
-        json={"assignment_id": assignment_id, "class_id": class_id},
+        json={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+            "due_date": "2077-05-31T23:40:03.266Z",
+        },
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, (
@@ -584,6 +587,7 @@ def test_assign_assignment(
         json={
             "assignment_id": assignment_id,
             "class_id": 99999999,  # Invalid class id
+            "due_date": "2077-05-31T23:40:03.266Z",
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
@@ -596,6 +600,7 @@ def test_assign_assignment(
         json={
             "assignment_id": 99999999,  # Invalid assignment id
             "class_id": class_id,
+            "due_date": "2077-05-31T23:40:03.266Z",
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
@@ -607,7 +612,11 @@ def test_assign_assignment(
     response = client.get(
         "/api/v1/user/assignment/assign",
         headers={"Authorization": f"Bearer {teacher_token}"},
-        params={"assignment_id": assignment_id, "class_id": class_id},
+        params={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+            "due_date": "2077-05-31T23:40:03.266Z",
+        },
     )
     assert response.status_code == 405, (
         f"Failed to get 405 method not allowed: {response.content}"
@@ -617,6 +626,7 @@ def test_assign_assignment(
         "/api/v1/user/assignment/assign",
         json={
             "class_id": class_id,
+            "due_date": "2077-05-31T23:40:03.266Z",
             # missing assignment_id field
         },
         headers={"Authorization": f"Bearer {teacher_token}"},
@@ -650,6 +660,9 @@ def test_get_assignments(
     assert response.json()[0]["id"] == assignment_id, (
         f"Failed to get the correct assignment id: {response.content}"
     )
+    assert response.json()[0]["due_date"] is not None, (
+        f"Failed to get the correct due date: {response.content}"
+    )
 
     response = client.get(
         "/api/v1/user/assignments",
@@ -661,6 +674,9 @@ def test_get_assignments(
     )
     assert response.json()[0]["id"] == assignment_id, (
         f"Failed to get the correct assignment id: {response.content}"
+    )
+    assert response.json()[0]["due_date"] is None, (
+        f"Incorrect behavior: {response.content}"
     )
 
     # Boundary cases

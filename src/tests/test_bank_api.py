@@ -147,13 +147,47 @@ def sub_question_id(client, question_id, admin_token):
     """
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": question_id},
+        params={"question_ids": [question_id]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
     assert len(response.json()) > 0, response.content
     assert len(response.json()[0]["sub_questions"]) > 0, response.content
     return response.json()[0]["sub_questions"][0]["id"]
+
+
+@pytest.fixture(scope="module")
+def question_id2(client, image_id, admin_token):
+    """Add a second question and return its ID
+
+    Args:
+        client (TestClient): the test client
+        image_id (int): the ID of the uploaded image
+        admin_token (str): the admin token
+
+    Returns:
+        int: the ID of the added question
+    """
+    question = {
+        "name": "Test Question 2",
+        "source": "testing2",
+        "sub_questions": [
+            {
+                "description": "This is a second test subquestion",
+                "answer": "This is the answer to the second subquestion",
+                "concept": ConceptType.MEASUREMENT.value,
+                "process": ProcessType.FORMULATE.value,
+                "options": ["option_a", "option_b"],
+            },
+        ],
+    }
+    response = client.post(
+        "/api/v1/bank/question/add",
+        json=question,
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    return response.json()["question_id"]
 
 
 def test_image_upload(client, test_image_path, student_token, admin_token):
@@ -276,6 +310,13 @@ def test_image_get(client, image_id, student_token):
     assert response.status_code == 200, response.content
     assert len(response.content) == 515
 
+    response = client.get(
+        "/api/v1/bank/image/get",
+        params={"image_id": image_id},
+    )
+    assert response.status_code == 200, response.content
+    assert len(response.content) == 515
+
     # Boundary cases
     response = client.get(
         "/api/v1/bank/image/get",
@@ -291,12 +332,6 @@ def test_image_get(client, image_id, student_token):
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 404, response.content
-
-    response = client.get(
-        "/api/v1/bank/image/get",
-        params={"image_id": image_id},
-    )
-    assert response.status_code == 401, response.content
 
     # Unexpected cases
     response = client.get(
@@ -369,19 +404,20 @@ def test_question_add(client, image_id, student_token, admin_token):
     assert response.status_code == 405, response.content
 
 
-def test_question_get(client, question_id, student_token, admin_token):
+def test_question_get(client, question_id, question_id2, student_token, admin_token):
     """Test the question get endpoint
 
     Args:
         client (TestClient): the test client
-        question_id (int): the ID of the uploaded question
+        question_id (int): the ID of the first uploaded question
+        question_id2 (int): the ID of the second uploaded question
         student_token (str): the student token
         admin_token (str): the admin token
     """
     # Expected cases
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": question_id},
+        params={"question_ids": [question_id]},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 200, response.content
@@ -389,7 +425,7 @@ def test_question_get(client, question_id, student_token, admin_token):
 
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": question_id},
+        params={"question_ids": [question_id]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
@@ -397,6 +433,23 @@ def test_question_get(client, question_id, student_token, admin_token):
     assert response.json()[0]["id"] == question_id, response.content
     assert response.json()[0]["name"] == "Test Question", response.content
     assert response.json()[0]["source"] == "testing", response.content
+
+    response = client.get(
+        "/api/v1/bank/question/get",
+        params={"question_ids": [question_id, question_id2]},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert len(response.json()) == 2, response.content
+    question_ids_returned = [q["id"] for q in response.json()]
+    assert question_id in question_ids_returned, response.content
+    assert question_id2 in question_ids_returned, response.content
+
+    response = client.get(
+        "/api/v1/bank/question/get",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
 
     response = client.get(
         "/api/v1/bank/question/get",
@@ -420,7 +473,7 @@ def test_question_get(client, question_id, student_token, admin_token):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json() == []
+    assert len(response.json()) > 0, response.content
 
     response = client.get(
         "/api/v1/bank/question/get",
@@ -436,7 +489,7 @@ def test_question_get(client, question_id, student_token, admin_token):
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json() == []
+    assert len(response.json()) > 0, response.content
 
     response = client.get(
         "/api/v1/bank/question/get",
@@ -457,7 +510,7 @@ def test_question_get(client, question_id, student_token, admin_token):
     # Boundary cases
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": 100},
+        params={"question_ids": [100]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
@@ -465,7 +518,7 @@ def test_question_get(client, question_id, student_token, admin_token):
 
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": "100"},
+        params={"question_ids": [100, 200]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
@@ -473,21 +526,30 @@ def test_question_get(client, question_id, student_token, admin_token):
 
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": "this is not an integer"},
+        params={"question_ids": [question_id, 100]},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert len(response.json()) == 1, response.content
+    assert response.json()[0]["id"] == question_id, response.content
+
+    response = client.get(
+        "/api/v1/bank/question/get",
+        params={"question_ids": ["not_an_integer"]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": question_id},
+        params={"question_ids": [question_id]},
     )
     assert response.status_code == 401, response.content
 
     # Unexpected cases
     response = client.post(
         "/api/v1/bank/question/get",
-        params={"question_id": question_id},
+        params={"question_ids": [question_id]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 405, response.content

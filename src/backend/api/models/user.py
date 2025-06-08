@@ -51,7 +51,17 @@ class Assignment(BaseModel):
     name: str
     description: str
     teacher_id: int
+    question_ids: List[int]
     due_date: Optional[datetime] = None
+
+
+class ClassData(BaseModel):
+    """Class data model for API"""
+
+    class_name: str
+    teacher_name: str
+    to_do_assignments: List[Assignment]
+    done_assignments: List[Assignment]
 
 
 class UserRegisterRequest(BaseModel):

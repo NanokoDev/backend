@@ -6,8 +6,8 @@ from backend.types.user import Permission
 from .resources import llm_api_callback
 
 
-question_id_cache = None
-sub_question_id_cache = None
+user_question_id_cache = None
+user_sub_question_id_cache = None
 class_id_cache = None
 class_name_cache = None
 assignment_id_cache = None
@@ -21,9 +21,9 @@ def question_id(client, admin_token):
         client (TestClient): The test client
         admin_token (str): The admin token
     """
-    global question_id_cache
-    if question_id_cache is not None:
-        return question_id_cache
+    global user_question_id_cache
+    if user_question_id_cache is not None:
+        return user_question_id_cache
     question = {
         "name": "User Test Question",
         "source": "testing",
@@ -43,7 +43,7 @@ def question_id(client, admin_token):
     )
     assert response.status_code == 200, f"Failed to create question: {response.content}"
     question_id = response.json()["question_id"]
-    question_id_cache = question_id
+    user_question_id_cache = question_id
 
     # approve the question
     response = client.post(
@@ -55,7 +55,7 @@ def question_id(client, admin_token):
         f"Failed to approve question: {response.content}"
     )
 
-    return question_id_cache
+    return user_question_id_cache
 
 
 @pytest.fixture(scope="module")
@@ -70,18 +70,18 @@ def sub_question_id(client, admin_token, question_id):
     Returns:
         int: The sub question id
     """
-    global sub_question_id_cache
-    if sub_question_id_cache is not None:
-        return sub_question_id_cache
+    global user_sub_question_id_cache
+    if user_sub_question_id_cache is not None:
+        return user_sub_question_id_cache
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"question_id": question_id},
+        params={"question_ids": [question_id]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, f"Failed to get question: {response.content}"
     sub_question_id = response.json()[0]["sub_questions"][0]["id"]
-    sub_question_id_cache = sub_question_id
-    return sub_question_id_cache
+    user_sub_question_id_cache = sub_question_id
+    return user_sub_question_id_cache
 
 
 @pytest.fixture(scope="module")
@@ -1027,3 +1027,410 @@ def test_leave_class(client):
         f"Failed to get 401 unauthorised: {response.content}"
     )
     assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_get_completed_sub_questions(
+    client,
+    student_token,
+    admin_token,
+    teacher_token,
+    sub_question_id,
+    assignment_id,
+    class_id,
+    httpx_mock,
+):
+    """Test the /api/v1/user/sub-questions/completed endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        admin_token (str): The admin token
+        teacher_token (str): The teacher token
+        sub_question_id (int): The sub question id
+        assignment_id (int): The assignment id
+        class_id (int): The class id
+        httpx_mock (HTTPXMock): The HTTPX mocker
+    """
+    httpx_mock.add_callback(llm_api_callback, method="POST", is_reusable=True)
+
+    class_id = class_id
+    response = client.post(
+        "/api/v1/user/submit",
+        json={
+            "assignment_id": assignment_id,
+            "sub_question_id": sub_question_id,
+            "answer": "This is a test answer for completed sub-questions",
+        },
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, f"Failed to submit answer: {response.content}"
+
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/sub-questions/completed",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed sub-questions: {response.content}"
+    )
+    assert len(response.json()) >= 1, (
+        f"Should have at least 1 completed sub-question: {response.content}"
+    )
+    assert response.json()[0]["id"] == sub_question_id, (
+        f"Sub-question ID should match: {response.content}"
+    )
+    assert "submitted_answer" in response.json()[0], (
+        f"Should include submitted_answer: {response.content}"
+    )
+    assert "performance" in response.json()[0], (
+        f"Should include performance: {response.content}"
+    )
+    assert "feedback" in response.json()[0], (
+        f"Should include feedback: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/sub-questions/completed",
+        params={"assignment_id": assignment_id},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed sub-questions with assignment filter: {response.content}"
+    )
+    assert len(response.json()) >= 1, (
+        f"Should have at least 1 completed sub-question for assignment: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/sub-questions/completed",
+        params={"assignment_id": 99999999},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed sub-questions with invalid assignment filter: {response.content}"
+    )
+    assert len(response.json()) == 0, (
+        f"Should have no completed sub-questions for invalid assignment: {response.content}"
+    )
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/sub-questions/completed",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed sub-questions for admin: {response.content}"
+    )
+    assert len(response.json()) == 0, (
+        f"Admin should have no completed sub-questions: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/sub-questions/completed",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed sub-questions for teacher: {response.content}"
+    )
+    assert len(response.json()) == 0, (
+        f"Teacher should have no completed sub-questions: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/sub-questions/completed",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/sub-questions/completed",
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )
+
+
+def test_get_completed_questions(
+    client,
+    student_token,
+    admin_token,
+    teacher_token,
+):
+    """Test the /api/v1/user/questions/completed endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        admin_token (str): The admin token
+        teacher_token (str): The teacher token
+        question_id (int): The question id
+    """
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/questions/completed",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed questions: {response.content}"
+    )
+    assert len(response.json()) >= 1, (
+        f"Should have at least 1 completed question: {response.content}"
+    )
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/questions/completed",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed questions for admin: {response.content}"
+    )
+    assert len(response.json()) == 0, (
+        f"Admin should have no completed questions: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/questions/completed",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed questions for teacher: {response.content}"
+    )
+    assert len(response.json()) == 0, (
+        f"Teacher should have no completed questions: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/questions/completed",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/questions/completed",
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )
+
+
+def test_get_completed_question(
+    client,
+    student_token,
+    assignment_id,
+    admin_token,
+    teacher_token,
+    question_id,
+    sub_question_id,
+    httpx_mock,
+):
+    """Test the /api/v1/user/question/completed endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        assignment_id (int): The assignment id
+        admin_token (str): The admin token
+        teacher_token (str): The teacher token
+        question_id (int): The question id
+        sub_question_id (int): The sub question id
+        httpx_mock (HTTPXMock): The HTTPX mocker
+    """
+    httpx_mock.add_callback(llm_api_callback, method="POST", is_reusable=True)
+
+    response = client.post(
+        "/api/v1/user/submit",
+        json={
+            "assignment_id": assignment_id,
+            "sub_question_id": sub_question_id,
+            "answer": "This is another test answer for completed sub-questions",
+        },
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, f"Failed to submit answer: {response.content}"
+
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/question/completed",
+        params={"question_id": question_id},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, (
+        f"Failed to get completed question: {response.content}"
+    )
+    completed_question = response.json()
+    assert completed_question["id"] == question_id, (
+        f"Question ID should match: {response.content}"
+    )
+    assert "sub_questions" in completed_question, (
+        f"Should include sub_questions: {response.content}"
+    )
+    assert len(completed_question["sub_questions"]) >= 1, (
+        f"Should have at least 1 completed sub-question: {response.content}"
+    )
+
+    sub_question = completed_question["sub_questions"][0]
+    assert sub_question["id"] == sub_question_id, (
+        f"Sub-question ID should match: {response.content}"
+    )
+    assert "submitted_answer" in sub_question, (
+        f"Should include submitted_answer: {response.content}"
+    )
+    assert "performance" in sub_question, (
+        f"Should include performance: {response.content}"
+    )
+    assert "feedback" in sub_question, f"Should include feedback: {response.content}"
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/question/completed",
+        params={"question_id": 99999999},  # Invalid question ID
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 404, (
+        f"Should fail with invalid question ID: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/question/completed",
+        params={"question_id": question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, (
+        f"Should fail when admin has no completed questions: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/question/completed",
+        params={"question_id": question_id},
+        headers={"Authorization": f"Bearer {teacher_token}"},
+    )
+    assert response.status_code == 404, (
+        f"Should fail when teacher has no completed questions: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/question/completed",
+        params={"question_id": question_id},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/question/completed",
+        params={"question_id": question_id},
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/question/completed",
+        # missing question_id
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 422, (
+        f"Failed to get 422 unprocessable entity: {response.content}"
+    )
+
+
+def test_get_class_data(
+    client,
+    student_token,
+    admin_token,
+    teacher_token,
+    assignment_id,
+    class_id,
+):
+    """Test the /api/v1/user/class/data endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        admin_token (str): The admin token
+        teacher_token (str): The teacher token
+        assignment_id (int): The assignment id
+        class_id (int): The class id
+    """
+    class_id = class_id  # Ensure the student is in a class and assignment is assigned
+
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/class/data",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, f"Failed to get class data: {response.content}"
+
+    class_data = response.json()
+    assert "class_name" in class_data, f"Should include class_name: {response.content}"
+    assert "teacher_name" in class_data, (
+        f"Should include teacher_name: {response.content}"
+    )
+    assert "to_do_assignments" in class_data, (
+        f"Should include to_do_assignments: {response.content}"
+    )
+    assert "done_assignments" in class_data, (
+        f"Should include done_assignments: {response.content}"
+    )
+    all_assignments = class_data["to_do_assignments"] + class_data["done_assignments"]
+    assignment_ids = [assignment["id"] for assignment in all_assignments]
+    assert assignment_id in assignment_ids, (
+        f"Assignment should be present in class data: {response.content}"
+    )
+    found_assignment = None
+    for assignment in all_assignments:
+        if assignment["id"] == assignment_id:
+            found_assignment = assignment
+            break
+
+    assert found_assignment is not None, (
+        f"Assignment should be found: {response.content}"
+    )
+    assert "due_date" in found_assignment, (
+        f"Assignment should include due_date: {response.content}"
+    )
+    assert "question_ids" in found_assignment, (
+        f"Assignment should include question_ids: {response.content}"
+    )
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/class/data",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, (
+        f"Should fail when admin is not in a class: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/class/data",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+    )
+    assert response.status_code == 404, (
+        f"Should fail when teacher is not enrolled in a class: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/class/data",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/class/data",
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )

@@ -283,6 +283,26 @@ async def service_teacher_token(client, teacher):
     return response.json()["access_token"]
 
 
+@pytest_asyncio.fixture(loop_scope="session", scope="module")
+async def service_student_token(client, student):
+    """Get the student token"""
+    response = client.post(
+        "/api/v1/user/token",
+        headers={
+            "accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "username": "service_student",
+            "password": "123456",
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get student token: {response.content}"
+    )
+    return response.json()["access_token"]
+
+
 @pytest.mark.asyncio(loop_scope="session")(loop_scope="session")
 async def test_get_performances(
     client, service_teacher_token, student, student_token, teacher_token
@@ -1082,4 +1102,88 @@ async def test_get_performance_trends(
             + "Z",
         },
     )
+    assert resp.status_code == 401, resp.content
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_overview(
+    client, service_student_token, student, class_, assignment, admin_token
+):
+    """Test the /api/v1/service/overview endpoint
+
+    Args:
+        client (TestClient): the test client
+        service_student_token (str): the service student token
+        student (User): the student user object
+        class_ (Class): the class object
+        assignment (Assignment): the assignment object
+        admin_token (str): the admin token
+    """
+    # Expected cases
+    resp = client.get(
+        "/api/v1/service/overview",
+        headers={"Authorization": f"Bearer {service_student_token}"},
+    )
+    assert resp.status_code == 200, resp.content
+    data = resp.json()
+    assert "class_name" in data
+    assert "assignments" in data
+    assert "display_name" in data
+    assert "total_question_number" in data
+    assert "performances" in data
+    assert data["class_name"] == class_.name
+    assert data["display_name"] == student.display_name
+    assert isinstance(data["assignments"], list)
+    assert len(data["assignments"]) > 0
+    first_assignment = data["assignments"][0]
+    required_fields = [
+        "id",
+        "name",
+        "description",
+        "teacher_id",
+        "question_ids",
+        "due_date",
+    ]
+    for field in required_fields:
+        assert field in first_assignment, f"Missing field {field} in assignment"
+    assignment_ids = [a["id"] for a in data["assignments"]]
+    assert assignment.id in assignment_ids, (
+        f"Assignment {assignment.id} not found in response"
+    )
+    performances = data["performances"]
+    expected_concepts = [
+        "elements_of_chance",
+        "mathematical_relationships",
+        "operations_on_numbers",
+    ]
+    for concept in expected_concepts:
+        assert concept in performances, f"Missing concept {concept} in performances"
+        concept_data = performances[concept]
+        expected_processes = ["formulate", "apply", "explain"]
+        for process in expected_processes:
+            assert process in concept_data, f"Missing process {process} in {concept}"
+            performance_value = concept_data[process]
+            assert isinstance(performance_value, (int, float)), (
+                f"Performance value for {concept}.{process} should be numeric"
+            )
+            assert 0 <= performance_value <= 4, (
+                f"Performance value for {concept}.{process} should be between 0 and 4"
+            )
+    assert isinstance(data["total_question_number"], int), (
+        "Total question number should be an integer"
+    )
+    assert data["total_question_number"] >= 0, (
+        "Total question number should be non-negative"
+    )
+
+    # Boundary cases
+    resp = client.get(
+        "/api/v1/service/overview",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 404, resp.content
+    assert "not enrolled in a class" in resp.json()["detail"]
+
+    # Unexpected cases
+    resp = client.get("/api/v1/service/overview")
     assert resp.status_code == 401, resp.content

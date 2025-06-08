@@ -89,38 +89,64 @@ def test_get_hint(client, student_token, httpx_mock):
     httpx_mock.add_callback(llm_api_callback, method="POST", is_reusable=True)
 
     # Expected cases
-    response = client.get(
+    response = client.post(
         "/api/v1/llm/hint",
         headers={"Authorization": f"Bearer {student_token}"},
-        params={
+        json={
             "sub_question_id": 1,
             "question": "I dont have any idea about this question",
+            "context": [
+                {"role": "assistant", "content": "How can I help you?"},
+                {"role": "user", "content": "I dont have any idea about this question"},
+            ],
         },
     )
     assert response.status_code == 200, f"Failed to get hint: {response.content}"
     assert response.json().get("hint"), f"Hint is empty: {response.content}"
 
     # Boundary cases
-    response = client.get(
+    response = client.post(
         "/api/v1/llm/hint",
         headers={"Authorization": f"Bearer {student_token}"},
-        params={
+        json={
             "sub_question_id": 112012,
             "question": "I dont have any idea about this question",
+            "context": [
+                {"role": "assistant", "content": "How can I help you?"},
+                {"role": "user", "content": "I dont have any idea about this question"},
+            ],
         },
     )
     assert response.status_code == 404, f"Failed to get 404: {response.content}"
 
-    response = client.get(
+    response = client.post(
         "/api/v1/llm/hint",
-        params={
+        json={
             "sub_question_id": 1,
             "question": "I dont have any idea about this question",
+            "context": [
+                {"role": "assistant", "content": "How can I help you?"},
+                {"role": "user", "content": "I dont have any idea about this question"},
+            ],
         },
     )
     assert response.status_code == 401, f"Failed to get 401: {response.content}"
 
     # Unexpected cases
+    response = client.get(
+        "/api/v1/llm/hint",
+        headers={"Authorization": f"Bearer {student_token}"},
+        params={
+            "sub_question_id": 1,
+            "question": "I dont have any idea about this question",
+            "context": [
+                {"role": "assistant", "content": "How can I help you?"},
+                {"role": "user", "content": "I dont have any idea about this question"},
+            ],
+        },
+    )
+    assert response.status_code == 405, f"Failed to get 405: {response.content}"
+
     response = client.post(
         "/api/v1/llm/hint",
         headers={"Authorization": f"Bearer {student_token}"},
@@ -129,4 +155,4 @@ def test_get_hint(client, student_token, httpx_mock):
             "question": "I dont have any idea about this question",
         },
     )
-    assert response.status_code == 405, f"Failed to get 405: {response.content}"
+    assert response.status_code == 422, f"Failed to get 422: {response.content}"

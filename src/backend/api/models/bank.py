@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+from backend.types.user import Performance
 from backend.types.question import ConceptType, ProcessType
 
 
@@ -15,6 +16,11 @@ class SubQuestion(BaseModel):
     keywords: Optional[List[str]] = None
     options: Optional[List[str]] = None
     image_id: Optional[int] = None
+
+    # For completed sub-questions
+    submitted_answer: Optional[str] = None
+    performance: Optional[Performance] = None
+    feedback: Optional[str] = None
 
 
 class Question(BaseModel):

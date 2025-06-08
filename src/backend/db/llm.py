@@ -1,3 +1,4 @@
+from typing import List, Dict
 from openai import AsyncOpenAI
 from sqlalchemy.future import select
 
@@ -86,12 +87,15 @@ class LLMManager:
 
         return feedback
 
-    async def get_hint(self, sub_question_id: int, question: str) -> str:
+    async def get_hint(
+        self, sub_question_id: int, question: str, context: List[Dict[str, str]]
+    ) -> str:
         """Get a hint for a sub-question based on the student's question.
 
         Args:
             sub_question_id (int): The ID of the sub-question.
             question (str): The student's question.
+            context (List[Dict[str, str]]): The context of the conversation.
 
         Raises:
             SubQuestionIdInvalid: If the sub-question is not found.
@@ -140,7 +144,8 @@ class LLMManager:
                             f"Student's question: {question}"
                         ),
                     },
-                ],
+                ]
+                + context,
             )
         except Exception as e:
             raise LLMRequestError(f"LLM request error: {str(e)}")

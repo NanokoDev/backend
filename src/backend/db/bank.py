@@ -433,9 +433,12 @@ class QuestionManager:
         """
         async with self._Session() as session:
             question_result = await session.execute(
-                select(Question).filter(Question.id.in_(question_ids))
+                select(Question)
+                .options(joinedload(Question.sub_questions))
+                # eager load sub_questions to prevent sqlalchemy.orm.exc.DetachedInstanceError
+                .filter(Question.id.in_(question_ids))
             )
-            return question_result.scalars().all()
+            return question_result.unique().scalars().all()
 
     async def get_question_by_values(
         self,

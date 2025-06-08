@@ -271,12 +271,13 @@ class UserManager:
                 return completed_sub_question
 
     async def get_completed_sub_questions(
-        self, user_id: int
+        self, user_id: int, assignment_id: Optional[int] = None
     ) -> List[CompletedSubQuestion]:
         """Get all completed sub-questions of a user.
 
         Args:
             user_id (int): The ID of the user.
+            assignment_id (Optional[int]): The ID of the assignment. Defaults to None.
 
         Raises:
             UserIdInvalid: If the user with the given ID is not found.
@@ -296,10 +297,22 @@ class UserManager:
             if user is None:
                 raise UserIdInvalid(user_id)
 
-            for completed_sub_question in user.completed_sub_questions:
-                await session.refresh(completed_sub_question, ["sub_question"])
+            if assignment_id is not None:
+                completed_sub_questions_result = await session.execute(
+                    select(CompletedSubQuestion).filter(
+                        CompletedSubQuestion.user_id == user_id,
+                        CompletedSubQuestion.assignment_id == assignment_id,
+                    )
+                )
+                completed_sub_questions = completed_sub_questions_result.scalars().all()
+            else:
+                completed_sub_questions = user.completed_sub_questions
 
-            return user.completed_sub_questions
+            for completed_sub_question in completed_sub_questions:
+                await session.refresh(completed_sub_question, ["sub_question"])
+                await session.refresh(completed_sub_question.sub_question, ["question"])
+
+            return completed_sub_questions
 
     async def reset_password(self, user_id: int, new_password: str) -> User:
         """Reset the password of a user.
@@ -616,7 +629,7 @@ class UserManager:
         async with self._Session() as session:
             teacher_result = await session.execute(
                 select(User)
-                .options(joinedload(User.assignments))
+                .options(joinedload(User.assignments).joinedload(Assignment.questions))
                 .filter(User.id == teacher_id)
             )
             teacher = teacher_result.scalars().first()
@@ -651,9 +664,9 @@ class UserManager:
             class_result = await session.execute(
                 select(Class)
                 .options(
-                    joinedload(Class.class_assignments).joinedload(
-                        ClassAssignment.assignment
-                    )
+                    joinedload(Class.class_assignments)
+                    .joinedload(ClassAssignment.assignment)
+                    .joinedload(Assignment.questions)
                 )
                 .filter(Class.id == class_id)
             )
@@ -694,7 +707,8 @@ class UserManager:
                 .options(
                     joinedload(User.enrolled_class)
                     .joinedload(Class.class_assignments)
-                    .joinedload(ClassAssignment.assignment),
+                    .joinedload(ClassAssignment.assignment)
+                    .joinedload(Assignment.questions),
                 )
                 .filter(User.id == student_id)
             )
@@ -747,3 +761,59 @@ class UserManager:
                 return student.enrolled_class_id in [
                     class_.id for class_ in teacher.teaching_classes
                 ]
+
+    async def is_assignment_completed(self, user_id: int, assignment_id: int) -> bool:
+        """Check if an assignment is completed by a user.
+
+        Args:
+            user_id (int): The ID of the user.
+            assignment_id (int): The ID of the assignment.
+
+        Raises:
+            UserIdInvalid: If the user with the given ID is not found.
+            AssignmentIdInvalid: If the assignment with the given ID is not found.
+
+        Returns:
+            bool: True if the assignment is completed by the user, False otherwise.
+        """
+        async with self._Session() as session:
+            async with session.begin():
+                user = await self.get_user_by_id(user_id)
+                if user is None:
+                    raise UserIdInvalid(user_id)
+
+                assignment_result = await session.execute(
+                    select(Assignment)
+                    .options(
+                        joinedload(Assignment.questions).joinedload(
+                            Question.sub_questions
+                        )
+                    )
+                    .filter(Assignment.id == assignment_id)
+                )
+                assignment = assignment_result.scalars().first()
+                if assignment is None:
+                    raise AssignmentIdInvalid(assignment_id)
+
+                all_sub_question_ids = set()
+                for question in assignment.questions:
+                    for sub_question in question.sub_questions:
+                        all_sub_question_ids.add(sub_question.id)
+
+                if not all_sub_question_ids:
+                    return True
+
+                completed_result = await session.execute(
+                    select(CompletedSubQuestion).filter(
+                        CompletedSubQuestion.user_id == user_id,
+                        CompletedSubQuestion.assignment_id == assignment_id,
+                    )
+                )
+                completed_sub_questions = completed_result.scalars().all()
+
+                completed_sub_question_ids = {
+                    completed_sub_question.sub_question_id
+                    for completed_sub_question in completed_sub_questions
+                }
+
+                return all_sub_question_ids.issubset(completed_sub_question_ids)

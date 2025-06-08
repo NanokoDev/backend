@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from backend.db import llm_manager
 from backend.api.models.user import User
 from backend.types.user import Permission
+from backend.api.models.llm import LLMHintRequest
 from backend.exceptions.llm import LLMRequestError
 from backend.api.base import get_current_user_generator
 from backend.exceptions.bank import SubQuestionIdInvalid
@@ -16,10 +17,9 @@ get_current_user = get_current_user_generator(
 )
 
 
-@router.get("/hint")
+@router.post("/hint")
 async def get_hint(
-    sub_question_id: int,
-    question: str,
+    request: LLMHintRequest,
     user: User = Depends(get_current_user),
 ) -> str:
     if user.permission < Permission.STUDENT:
@@ -30,7 +30,9 @@ async def get_hint(
 
     try:
         hint = await llm_manager.get_hint(
-            sub_question_id=sub_question_id, question=question
+            sub_question_id=request.sub_question_id,
+            question=request.question,
+            context=[message.model_dump() for message in request.context],
         )
         return JSONResponse({"hint": hint}, status_code=status.HTTP_200_OK)
     except LLMRequestError:
@@ -42,7 +44,7 @@ async def get_hint(
     except SubQuestionIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sub-question not found: {sub_question_id}",
+            detail=f"Sub-question not found: {request.sub_question_id}",
         )
     except Exception as e:
         raise HTTPException(

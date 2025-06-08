@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, Query
 
 from backend.config import config
 from backend.db import question_manager
@@ -252,27 +252,18 @@ async def get_image_description(
 
 
 @router.get("/image/get", response_class=FileResponse)
-async def get_image(image_id: int, current_user: User = Depends(get_current_user)):
+async def get_image(image_id: int):
     """Get an image from the database
 
     Args:
         image_id (int): The id of the image to get
-        current_user (User): The user who requested the image
 
     Raises:
         HTTPException: No image with id found
-        HTTPException: You do not have permission to get images
 
     Returns:
         FileResponse: The image file
     """
-    if current_user.permission < Permission.STUDENT:
-        # Should never happen
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to get images!",
-        )
-
     image = await question_manager.get_image(image_id)
     if image is None:
         raise HTTPException(
@@ -662,7 +653,7 @@ async def delete_sub_question_image(
 
 @router.get("/question/get", response_model=List[Question])
 async def get_questions(
-    question_id: Optional[int] = None,
+    question_ids: Optional[List[int]] = Query(None),
     name: Optional[str] = None,
     source: Optional[str] = None,
     concept: Optional[ConceptType] = None,
@@ -672,7 +663,7 @@ async def get_questions(
     """Get questions from the database
 
     Args:
-        question_id (Optional[int], optional): The question id of the question. Defaults to None.
+        question_ids (Optional[List[int]], optional): The question ids of the questions. Defaults to None.
         name (Optional[str], optional): The name of the question. Defaults to None.
         source (Optional[str], optional): The source of the question. Defaults to None.
         concept (Optional[ConceptType], optional): The concept of questions. Defaults to None.
@@ -680,46 +671,50 @@ async def get_questions(
         current_user (User): The user who requested the questions
 
     Raises:
-        HTTPException: question_id is not an integer
+        HTTPException: question_ids contains invalid values
         HTTPException: source is not a string
 
     Returns:
         List[Question]: The list of questions
     """
 
-    if question_id is not None:
-        question = await question_manager.get_question(question_id)
-        if question is None:
+    if question_ids is not None:
+        # If question_ids is empty list, return empty list
+        if not question_ids:
             return []
 
-        question_ = Question(
-            id=question.id,
-            name=question.name,
-            source=question.source,
-            is_audited=question.is_audited,
-            is_deleted=question.is_deleted,
-            sub_questions=[
-                SubQuestion(
-                    id=sub_question.id,
-                    description=sub_question.description,
-                    answer=sub_question.answer,
-                    concept=sub_question.concept,
-                    process=sub_question.process,
-                    keywords=sub_question.keywords,
-                    options=sub_question.options,
-                    image_id=sub_question.image_id,
-                )
-                for sub_question in question.sub_questions
-            ],
-        )
+        questions = await question_manager.get_questions_by_ids(question_ids)
 
-        if current_user.permission >= Permission.ADMIN:
-            return [question_]
+        questions_ = []
+        for question in questions:
+            question_ = Question(
+                id=question.id,
+                name=question.name,
+                source=question.source,
+                is_audited=question.is_audited,
+                is_deleted=question.is_deleted,
+                sub_questions=[
+                    SubQuestion(
+                        id=sub_question.id,
+                        description=sub_question.description,
+                        answer=sub_question.answer,
+                        concept=sub_question.concept,
+                        process=sub_question.process,
+                        keywords=sub_question.keywords,
+                        options=sub_question.options,
+                        image_id=sub_question.image_id,
+                    )
+                    for sub_question in question.sub_questions
+                ],
+            )
 
-        if question.is_deleted or not question.is_audited:
-            return []
+            # Apply permission-based filtering
+            if current_user.permission >= Permission.ADMIN:
+                questions_.append(question_)
+            elif not question.is_deleted and question.is_audited:
+                questions_.append(question_)
 
-        return [question_]
+        return questions_
     else:
         questions = await question_manager.get_question_by_values(
             name=name,

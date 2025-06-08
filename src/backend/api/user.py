@@ -1,6 +1,7 @@
 import jwt
-from typing import Annotated, List
+from collections import defaultdict
 from fastapi.responses import JSONResponse
+from typing import Annotated, List, Optional, Dict
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -9,13 +10,16 @@ from backend.config import config
 from backend.types.user import Permission
 from backend.api.base import get_current_user_generator
 from backend.exceptions.bank import SubQuestionIdInvalid
+from backend.api.models.bank import SubQuestion, Question
 from backend.db import user_manager, llm_manager, question_manager
 from backend.exceptions.llm import LLMRequestError, InvalidLLMResponse
+from backend.db.models.bank import Question as DBQuestion, CompletedSubQuestion
 from backend.api.models.user import (
     User,
     Token,
     Class,
     FeedBack,
+    ClassData,
     Assignment,
     JoinClassRequest,
     CreateClassRequest,
@@ -264,6 +268,167 @@ async def submit_answer(
     )
 
 
+@router.get("/sub-questions/completed", response_model=List[SubQuestion])
+async def get_completed_sub_questions(
+    assignment_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Get all completed sub-questions for the current user.
+
+    Args:
+        assignment_id (Optional[int]): The ID of the assignment. Defaults to None.
+        current_user (User): Current user from the token.
+
+    Returns:
+        List[SubQuestion]: A list of sub-questions that the user has completed.
+    """
+    if assignment_id is not None:
+        completed_sub_questions = await user_manager.get_completed_sub_questions(
+            user_id=current_user.id, assignment_id=assignment_id
+        )
+    else:
+        completed_sub_questions = await user_manager.get_completed_sub_questions(
+            user_id=current_user.id
+        )
+    return [
+        SubQuestion(
+            id=completed_sub_question.sub_question_id,
+            description=completed_sub_question.sub_question.description,
+            answer=completed_sub_question.sub_question.answer,
+            concept=completed_sub_question.sub_question.concept,
+            process=completed_sub_question.sub_question.process,
+            keywords=completed_sub_question.sub_question.keywords,
+            options=completed_sub_question.sub_question.options,
+            image_id=completed_sub_question.sub_question.image_id,
+            submitted_answer=completed_sub_question.answer,
+            performance=completed_sub_question.performance,
+            feedback=completed_sub_question.feedback,
+        )
+        for completed_sub_question in completed_sub_questions
+    ]
+
+
+@router.get("/questions/completed", response_model=List[Question])
+async def get_completed_questions(
+    current_user: User = Depends(get_current_user),
+):
+    """Get all completed questions for the current user.
+
+    Args:
+        current_user (User): Current user from the token.
+
+    Returns:
+        List[Question]: A list of questions that the user has completed.
+    """
+    completed_sub_questions = await user_manager.get_completed_sub_questions(
+        user_id=current_user.id
+    )
+    questions: Dict[int, DBQuestion] = {
+        completed_sub_question.sub_question.question_id: completed_sub_question.sub_question.question
+        for completed_sub_question in completed_sub_questions
+    }
+    questions_sub_questions: Dict[int, List[CompletedSubQuestion]] = defaultdict(list)
+    for completed_sub_question in completed_sub_questions:
+        questions_sub_questions[completed_sub_question.sub_question.question_id].append(
+            completed_sub_question
+        )
+
+    # ensure unique sub_questions, older sub_questions are kept
+    for question_id, sub_questions in questions_sub_questions.items():
+        new_sub_questions: Dict[int, CompletedSubQuestion] = {}
+        for sub_question in sub_questions:
+            if sub_question.id not in new_sub_questions:
+                new_sub_questions[sub_question.id] = sub_question
+            else:
+                if (
+                    new_sub_questions[sub_question.id].created_at
+                    < sub_question.created_at
+                ):
+                    new_sub_questions[sub_question.id] = sub_question
+        questions_sub_questions[question_id] = list(new_sub_questions.values())
+
+    return [
+        Question(
+            id=question.id,
+            name=question.name,
+            source=question.source,
+            sub_questions=[
+                SubQuestion(
+                    id=sub_question.id,
+                    description=sub_question.sub_question.description,
+                    answer=sub_question.sub_question.answer,
+                    concept=sub_question.sub_question.concept,
+                    process=sub_question.sub_question.process,
+                    keywords=sub_question.sub_question.keywords,
+                    options=sub_question.sub_question.options,
+                    image_id=sub_question.sub_question.image_id,
+                    submitted_answer=sub_question.answer,
+                    performance=sub_question.performance,
+                    feedback=sub_question.feedback,
+                )
+                for sub_question in questions_sub_questions[question.id]
+            ],
+        )
+        for question in questions.values()
+    ]
+
+
+@router.get("/question/completed", response_model=Question)
+async def get_completed_question(
+    question_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Get a completed question for the current user.
+
+    Args:
+        question_id (int): The ID of the question.
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the question is not found.
+
+    Returns:
+        Question: The completed question.
+    """
+    completed_sub_questions = await user_manager.get_completed_sub_questions(
+        user_id=current_user.id
+    )
+    completed_sub_questions = [
+        completed_sub_question
+        for completed_sub_question in completed_sub_questions
+        if completed_sub_question.sub_question.question_id == question_id
+    ]
+
+    if not completed_sub_questions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No completed sub-questions found",
+        )
+
+    sub_questions: Dict[int, SubQuestion] = {}
+    for completed_sub_question in completed_sub_questions:
+        sub_questions[completed_sub_question.sub_question_id] = SubQuestion(
+            id=completed_sub_question.sub_question_id,
+            description=completed_sub_question.sub_question.description,
+            answer=completed_sub_question.sub_question.answer,
+            concept=completed_sub_question.sub_question.concept,
+            process=completed_sub_question.sub_question.process,
+            keywords=completed_sub_question.sub_question.keywords,
+            options=completed_sub_question.sub_question.options,
+            image_id=completed_sub_question.sub_question.image_id,
+            submitted_answer=completed_sub_question.answer,
+            performance=completed_sub_question.performance,
+            feedback=completed_sub_question.feedback,
+        )
+
+    return Question(
+        id=completed_sub_questions[0].sub_question.question_id,
+        name=completed_sub_questions[0].sub_question.question.name,
+        source=completed_sub_questions[0].sub_question.question.source,
+        sub_questions=list(sub_questions.values()),
+    )
+
+
 @router.post("/password/reset")
 async def reset_password(
     request: ResetPasswordRequest,
@@ -490,6 +655,7 @@ async def create_assignment(
             id=assignment.id,
             name=assignment.name,
             description=assignment.description,
+            question_ids=[question.id for question in assignment.questions],
             teacher_id=assignment.teacher_id,
         )
     except UserIdInvalid:
@@ -582,6 +748,7 @@ async def get_assignments(
                     name=assignment.name,
                     description=assignment.description,
                     teacher_id=assignment.teacher_id,
+                    question_ids=[question.id for question in assignment.questions],
                 )
                 for assignment in assignments
             ]
@@ -595,6 +762,9 @@ async def get_assignments(
                     name=assignment.assignment.name,
                     description=assignment.assignment.description,
                     teacher_id=assignment.assignment.teacher_id,
+                    question_ids=[
+                        question.id for question in assignment.assignment.questions
+                    ],
                     due_date=assignment.due_date,
                 )
                 for assignment in assignments
@@ -614,3 +784,84 @@ async def get_assignments(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred: {str(e)}",
         )
+
+
+@router.get("/class/data", response_model=ClassData)
+async def get_class_data(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Get the data for the current user's class.
+
+    Args:
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the user is not found or is not enrolled in a class.
+
+    Returns:
+        ClassData: The data for the current user's class.
+    """
+    user = await user_manager.get_user_by_id(user_id=current_user.id)
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if user.enrolled_class_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not enrolled in a class",
+        )
+
+    class_ = await user_manager.get_class_by_id(class_id=user.enrolled_class_id)
+    assert class_ is not None
+
+    teacher = await user_manager.get_user_by_id(user_id=class_.teacher_id)
+    assert teacher is not None
+
+    class_assignments = await user_manager.get_assignments_by_class_id(
+        class_id=class_.id, user_id=user.id
+    )
+
+    to_do_assignments = []
+    done_assignments = []
+    for class_assignment in class_assignments:
+        if await user_manager.is_assignment_completed(
+            user_id=user.id, assignment_id=class_assignment.assignment.id
+        ):
+            done_assignments.append(
+                Assignment(
+                    id=class_assignment.assignment.id,
+                    name=class_assignment.assignment.name,
+                    description=class_assignment.assignment.description,
+                    teacher_id=class_assignment.assignment.teacher_id,
+                    question_ids=[
+                        question.id
+                        for question in class_assignment.assignment.questions
+                    ],
+                    due_date=class_assignment.due_date,
+                )
+            )
+        else:
+            to_do_assignments.append(
+                Assignment(
+                    id=class_assignment.assignment.id,
+                    name=class_assignment.assignment.name,
+                    description=class_assignment.assignment.description,
+                    teacher_id=class_assignment.assignment.teacher_id,
+                    question_ids=[
+                        question.id
+                        for question in class_assignment.assignment.questions
+                    ],
+                    due_date=class_assignment.due_date,
+                )
+            )
+
+    return ClassData(
+        class_name=class_.name,
+        teacher_name=teacher.display_name,
+        to_do_assignments=to_do_assignments,
+        done_assignments=done_assignments,
+    )

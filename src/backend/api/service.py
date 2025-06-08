@@ -4,10 +4,11 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi import APIRouter, HTTPException, Depends, status
 
 from backend.db import user_manager
-from backend.api.models.user import User
 from backend.types.user import Permission
 from backend.services.analyzer import Analyzer
+from backend.api.models.service import Overview
 from backend.exceptions.user import UserIdInvalid
+from backend.api.models.user import User, Assignment
 from backend.api.base import get_current_user_generator
 from backend.services.analyzer.models import (
     Performances,
@@ -353,3 +354,63 @@ async def get_performance_trends(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred: {str(e)}",
         )
+
+
+@router.get("/overview", response_model=Overview)
+async def get_overview(
+    current_user: User = Depends(get_current_user),
+):
+    """Get the overview of the current user.
+
+    Args:
+        current_user (User, optional): Current user from the token. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: If the user is not found or is not enrolled in a class.
+
+    Returns:
+        Overview: The overview of the current user.
+    """
+    user = await user_manager.get_user_by_id(user_id=current_user.id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if user.enrolled_class_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not enrolled in a class",
+        )
+
+    class_ = await user_manager.get_class_by_id(user.enrolled_class_id)
+    assert class_ is not None
+
+    class_assignments = await user_manager.get_assignments_by_student_id(user.id)
+    timedelta = datetime.timedelta(days=30)
+    performances = await analyzer.get_recent_average_performances(
+        user_id=user.id, timedelta=timedelta
+    )
+
+    completed_sub_questions = await user_manager.get_completed_sub_questions(user.id)
+
+    return Overview(
+        class_name=class_.name,
+        assignments=[
+            Assignment(
+                id=class_assignment.assignment.id,
+                name=class_assignment.assignment.name,
+                description=class_assignment.assignment.description,
+                teacher_id=class_assignment.assignment.teacher_id,
+                question_ids=[
+                    question.id for question in class_assignment.assignment.questions
+                ],
+                due_date=class_assignment.due_date,
+            )
+            for class_assignment in class_assignments
+        ],
+        display_name=user.display_name,
+        total_question_number=len(completed_sub_questions),
+        performances=performances,
+    )

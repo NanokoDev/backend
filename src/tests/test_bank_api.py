@@ -493,7 +493,7 @@ def test_question_get(client, question_id, question_id2, student_token, admin_to
 
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"name": "Test Question"},
+        params={"keyword": "Test Question"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
@@ -501,7 +501,7 @@ def test_question_get(client, question_id, question_id2, student_token, admin_to
 
     response = client.get(
         "/api/v1/bank/question/get",
-        params={"name": "Non-existent Question"},
+        params={"keyword": "Non-existent Question"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content

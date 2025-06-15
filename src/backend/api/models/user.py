@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from backend.types.user import Permission, Performance
+from backend.services.analyzer.models import Performances
+from backend.api.models.bank import Question, SubQuestion
 
 
 class Token(BaseModel):
@@ -64,6 +66,47 @@ class ClassData(BaseModel):
     done_assignments: List[Assignment]
 
 
+class TeacherClassData(BaseModel):
+    """Teacher class data model for API"""
+
+    class_id: int
+    name: str
+    enter_code: str
+    students: List[User]
+    assignments: List[Assignment]
+    performances: Performances
+
+
+class StudentPerformance(BaseModel):
+    """Student performance model for API"""
+
+    user: User
+    answer: Optional[str] = None
+    performance: Optional[Performance] = None
+    feedback: Optional[str] = None
+    date: Optional[datetime] = None
+    # If none, then the student did not submit
+
+
+class ReviewSubQuestion(SubQuestion):
+    """Review sub-question model for API"""
+
+    student_performances: List[StudentPerformance]
+
+
+class ReviewQuestion(Question):
+    """Review question model for API"""
+
+    sub_questions: List[ReviewSubQuestion]
+
+
+class AssignmentReviewData(BaseModel):
+    """Assignment review data model for API"""
+
+    title: str
+    questions: List[ReviewQuestion]
+
+
 class UserRegisterRequest(BaseModel):
     """User registration request model"""
 
@@ -101,6 +144,12 @@ class JoinClassRequest(BaseModel):
 
     class_name: str
     enter_code: str
+
+
+class KickStudentRequest(BaseModel):
+    """Kick student request model"""
+
+    student_id: int
 
 
 class CreateAssignmentRequest(BaseModel):

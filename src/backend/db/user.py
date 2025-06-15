@@ -1,14 +1,14 @@
 import re
 import bcrypt
 import datetime
-from sqlalchemy import select
 from typing import Optional, List
+from sqlalchemy import select, or_
 from sqlalchemy.orm import joinedload
 
 from backend.db.base import DatabaseManager
 from backend.types.user import Permission, Performance
 from backend.exceptions.bank import SubQuestionIdInvalid
-from backend.db.models.bank import SubQuestion, Question
+from backend.db.models.bank import SubQuestion, Question, Image
 from backend.db.models.user import (
     User,
     Class,
@@ -25,6 +25,7 @@ from backend.exceptions.user import (
     UsernameAlreadyExists,
     UserEmailAlreadyExists,
     ClassEnterCodeIncorrect,
+    AssignmentAlreadyAssignedToClass,
 )
 
 
@@ -486,7 +487,9 @@ class UserManager:
         """
         async with self._Session() as session:
             class_result = await session.execute(
-                select(Class).filter(Class.id == class_id)
+                select(Class)
+                .options(joinedload(Class.students))
+                .filter(Class.id == class_id)
             )
             class_ = class_result.scalars().first()
             return class_
@@ -506,6 +509,39 @@ class UserManager:
             )
             class_ = class_result.scalars().first()
             return class_
+
+    async def get_teaching_classes(self, user_id: int) -> List[Class]:
+        """Get a teacher's teaching classes
+
+        Args:
+            user_id (int): The ID of the teacher.
+
+        Raises:
+            UserIdInvalid: If the user with the given ID is not found.
+
+        Returns:
+            List[Class]: The teaching classes.
+        """
+        async with self._Session() as session:
+            user_result = await session.execute(
+                select(User)
+                .options(
+                    joinedload(User.teaching_classes)
+                    .joinedload(Class.class_assignments)
+                    .joinedload(ClassAssignment.assignment)
+                    .joinedload(Assignment.questions)
+                )
+                .filter(User.id == user_id)
+            )
+            user = user_result.scalars().first()
+
+            if user is None:
+                raise UserIdInvalid(user_id)
+
+            for class_ in user.teaching_classes:
+                await session.refresh(class_, ["students"])
+
+            return user.teaching_classes
 
     async def create_assignment(
         self,
@@ -568,6 +604,7 @@ class UserManager:
             AssignmentIdInvalid: If the assignment with the given ID is not found.
             PermissionError: If the user does not have permission to assign this assignment.
             ClassIdInvalid: If the class with the given ID is not found.
+            AssignmentAlreadyAssignedToClass: If the assignment is already assigned to the class.
 
         Returns:
             None: The assignment has been successfully assigned to the class.
@@ -601,8 +638,8 @@ class UserManager:
                     )
                 )
                 if existing_assignment.scalars().first() is not None:
-                    raise PermissionError(
-                        f"Assignment {assignment_id} is already assigned to class {class_id}."
+                    raise AssignmentAlreadyAssignedToClass(
+                        assignment_id=assignment_id, class_id=class_id
                     )
 
                 class_assignment = ClassAssignment(
@@ -687,6 +724,57 @@ class UserManager:
 
             return [class_assignment for class_assignment in class_.class_assignments]
 
+    async def get_assignments_by_id_and_class_id(
+        self, assignment_id: int, class_id: int, user_id: int
+    ) -> Optional[ClassAssignment]:
+        """Get an assignment by its ID and class ID.
+
+        Args:
+            assignment_id (int): The ID of the assignment.
+            class_id (int): The ID of the class.
+            user_id (int): The ID of the user.
+
+        Raises:
+            ClassIdInvalid: If the class with the given ID is not found.
+            UserIdInvalid: If the user with the given ID is not found.
+            PermissionError: If the user is not enrolled in the class or is the teacher of the class.
+
+        Returns:
+            Optional[ClassAssignment]: The class assignment object if found, otherwise None.
+        """
+        async with self._Session() as session:
+            class_result = await session.execute(
+                select(Class).filter(Class.id == class_id)
+            )
+            class_ = class_result.scalars().first()
+            if class_ is None:
+                raise ClassIdInvalid(class_id)
+
+            user = await self.get_user_by_id(user_id)
+            if user is None:
+                raise UserIdInvalid(user_id)
+
+            if user.permission < Permission.ADMIN and (
+                user.enrolled_class_id != class_id and class_.teacher_id != user.id
+            ):
+                raise PermissionError(
+                    f"User {user.id} is not enrolled in class {class_.id} or is the teacher of the class."
+                )
+
+            class_assignment_result = await session.execute(
+                select(ClassAssignment)
+                .options(
+                    joinedload(ClassAssignment.assignment)
+                    .joinedload(Assignment.questions)
+                    .joinedload(Question.sub_questions)
+                )
+                .options(joinedload(ClassAssignment.class_).joinedload(Class.students))
+                .filter(ClassAssignment.class_id == class_id)
+                .filter(ClassAssignment.assignment_id == assignment_id)
+            )
+            class_assignment = class_assignment_result.scalars().first()
+            return class_assignment
+
     async def get_assignments_by_student_id(
         self, student_id: int
     ) -> List[ClassAssignment]:
@@ -724,6 +812,48 @@ class UserManager:
                 if student.enrolled_class
                 else []
             )
+
+    async def get_assignment_image(
+        self, assignment_id: int, user_id: int
+    ) -> Optional[Image]:
+        """Get the image of an assignment.
+
+        Args:
+            assignment_id (int): The ID of the assignment.
+            user_id (int): The ID of the user.
+
+        Returns:
+            Optional[Image]: The image of the assignment.
+        """
+        async with self._Session() as session:
+            assignment_result = await session.execute(
+                select(Assignment)
+                .options(
+                    joinedload(Assignment.questions)
+                    .joinedload(Question.sub_questions)
+                    .joinedload(SubQuestion.image)
+                )
+                .filter(Assignment.id == assignment_id)
+                .filter(
+                    or_(
+                        Assignment.teacher_id == user_id,
+                        Assignment.class_assignments.any(
+                            ClassAssignment.class_.has(
+                                Class.students.any(User.id == user_id)
+                            )
+                        ),
+                    )
+                )
+            )
+            assignment = assignment_result.scalars().first()
+            if assignment is None:
+                raise AssignmentIdInvalid(assignment_id)
+
+            for question in assignment.questions:
+                for sub_question in question.sub_questions:
+                    if sub_question.image is not None:
+                        return sub_question.image
+            return None
 
     async def is_my_student(self, teacher_id: int, student_id: int) -> bool:
         """Check if a student is in the teacher's class.

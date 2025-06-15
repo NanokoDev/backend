@@ -1,3 +1,4 @@
+import datetime
 from typing import List
 from enum import IntEnum
 from pydantic import BaseModel, Field
@@ -71,3 +72,10 @@ class PerformancesData(BaseModel):
     measurement: ProcessData
     statistics_and_data: ProcessData
     elements_of_chance: ProcessData
+
+
+class PerformanceDateData(BaseModel):
+    """Performance data of a student over time."""
+
+    performances: List[float]
+    dates: List[datetime.datetime]

@@ -1106,6 +1106,84 @@ async def test_get_performance_trends(
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_get_performance_date_data(
+    client, service_teacher_token, student, student_token, teacher_token
+):
+    """Test the /api/v1/service/performances/date endpoint
+
+    Args:
+        client (TestClient): the test client
+        service_teacher_token (str): the service teacher token
+        student (User): the student user object
+        student_token (str): the student token
+        teacher_token (str): the teacher token
+    """
+    # Expected cases
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        headers={"Authorization": f"Bearer {service_teacher_token}"},
+        params={
+            "user_id": student.id,
+        },
+    )
+    assert resp.status_code == 200, resp.content
+
+    # Boundary cases
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        headers={"Authorization": f"Bearer {student_token}"},
+        params={
+            "user_id": student.id,
+        },
+    )
+    assert resp.status_code == 403, resp.content
+
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+        params={
+            "user_id": student.id,
+        },
+    )
+    assert resp.status_code == 403, resp.content
+
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        headers={"Authorization": f"Bearer {service_teacher_token}"},
+        params={
+            "user_id": 12345678,
+        },
+    )
+    assert resp.status_code == 404, resp.content
+
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        headers={"Authorization": f"Bearer {service_teacher_token}"},
+        params={
+            "user_id": student.id,
+            "start_time": (datetime.datetime.now()).isoformat(),  # no timezone info
+        },
+    )
+    assert resp.status_code == 400, resp.content
+
+    # Unexpected cases
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        headers={"Authorization": f"Bearer {service_teacher_token}"},
+        params={},
+    )
+    assert resp.status_code == 422, resp.content
+
+    resp = client.get(
+        "/api/v1/service/performances/date",
+        params={
+            "user_id": student.id,
+        },
+    )
+    assert resp.status_code == 401, resp.content
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_get_overview(
     client, service_student_token, student, class_, assignment, admin_token
 ):
@@ -1187,3 +1265,47 @@ async def test_get_overview(
     # Unexpected cases
     resp = client.get("/api/v1/service/overview")
     assert resp.status_code == 401, resp.content
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_get_teacher_overview(
+    client,
+    service_teacher_token,
+    student_token,
+):
+    """Test the /api/v1/service/overview/teacher endpoint
+
+    Args:
+        client (TestClient): the test client
+        service_teacher_token (str): the service teacher token
+        student_token (str): the student token
+    """
+    # Expected cases
+    resp = client.get(
+        "/api/v1/service/overview/teacher",
+        headers={"Authorization": f"Bearer {service_teacher_token}"},
+    )
+    assert resp.status_code == 200, resp.content
+    data = resp.json()
+    assert "classes" in data
+    assert "assignments" in data
+    assert "students" in data
+
+    # Boundary cases
+    resp = client.get(
+        "/api/v1/service/overview/teacher",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert resp.status_code == 403, resp.content
+
+    # Unexpected cases
+    resp = client.get(
+        "/api/v1/service/overview/teacher",
+    )
+    assert resp.status_code == 401, resp.content
+
+    resp = client.post(
+        "/api/v1/service/overview/teacher",
+        headers={"Authorization": f"Bearer {service_teacher_token}"},
+    )
+    assert resp.status_code == 405, resp.content

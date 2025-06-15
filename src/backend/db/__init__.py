@@ -5,6 +5,7 @@ from backend.db.llm import LLMManager
 from backend.db.user import UserManager
 from backend.db.base import DatabaseManager
 from backend.db.bank import QuestionManager
+from backend.services.analyzer import Analyzer
 
 
 database_manager = DatabaseManager(
@@ -22,3 +23,4 @@ llm_manager = LLMManager(
 )
 user_manager = UserManager(database_manager=database_manager)
 question_manager = QuestionManager(database_manager=database_manager)
+analyzer = Analyzer(user_manager=user_manager)

@@ -3,8 +3,8 @@ from sqlalchemy import String, Boolean, ForeignKey, Enum, JSON
 from sqlalchemy.orm import mapped_column, relationship, Mapped
 
 from backend.db.models.base import Base
-from backend.db.models.user import CompletedSubQuestion
 from backend.types.question import ConceptType, ProcessType
+from backend.db.models.user import CompletedSubQuestion, User
 
 
 class Image(Base):
@@ -15,6 +15,10 @@ class Image(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(String(50))
     path: Mapped[str] = mapped_column(String(255))
+    uploader_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
+    uploader: Mapped[User] = relationship(
+        "User", back_populates="images", foreign_keys=[uploader_id]
+    )
 
     sub_questions: Mapped[List["SubQuestion"]] = relationship(back_populates="image")
 
@@ -64,11 +68,15 @@ class Question(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    source: Mapped[str]
+    source: Mapped[str] = mapped_column(String(100))
+    uploader_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     is_audited: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
 
-    sub_questions: Mapped[List["SubQuestion"]] = relationship(back_populates="question")
+    uploader: Mapped[User] = relationship(
+        "User", back_populates="questions", foreign_keys=[uploader_id]
+    )
+    sub_questions: Mapped[List[SubQuestion]] = relationship(back_populates="question")
 
     def __repr__(self):
         return f"Question(id={self.id!r}, name={self.name!r}, source={self.source!r}, is_audited={self.is_audited!r}, is_deleted={self.is_deleted!r})"

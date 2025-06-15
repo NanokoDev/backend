@@ -62,3 +62,12 @@ class ClassEnterCodeIncorrect(UserDatabaseError):
 
     def __init__(self, enter_code: str) -> None:
         super().__init__(f"Incorrect enter code {enter_code}")
+
+
+class AssignmentAlreadyAssignedToClass(UserDatabaseError):
+    """Exception raised when an assignment is already assigned to a class"""
+
+    def __init__(self, assignment_id: int, class_id: int) -> None:
+        super().__init__(
+            f"Assignment {assignment_id} is already assigned to class {class_id}"
+        )

@@ -8,7 +8,7 @@ from backend.types.user import Permission, Performance
 from backend.db.models.base import assignment_question_table
 
 if TYPE_CHECKING:
-    from backend.db.models.bank import SubQuestion, Question
+    from backend.db.models.bank import SubQuestion, Question, Image
     # avoid circular import error
 
 
@@ -61,6 +61,8 @@ class User(Base):
         back_populates="user"
     )
 
+    questions: Mapped[List["Question"]] = relationship(back_populates="uploader")
+    images: Mapped[List["Image"]] = relationship(back_populates="uploader")
     teaching_classes: Mapped[List["Class"]] = relationship(
         back_populates="teacher", foreign_keys="Class.teacher_id"
     )

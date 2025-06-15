@@ -1,8 +1,8 @@
 import jwt
 from collections import defaultdict
-from fastapi.responses import JSONResponse
-from typing import Annotated, List, Optional, Dict
 from datetime import datetime, timedelta, timezone
+from fastapi.responses import JSONResponse, FileResponse
+from typing import Annotated, List, Optional, Dict, Union
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
@@ -11,8 +11,8 @@ from backend.types.user import Permission
 from backend.api.base import get_current_user_generator
 from backend.exceptions.bank import SubQuestionIdInvalid
 from backend.api.models.bank import SubQuestion, Question
-from backend.db import user_manager, llm_manager, question_manager
 from backend.exceptions.llm import LLMRequestError, InvalidLLMResponse
+from backend.db import user_manager, llm_manager, question_manager, analyzer
 from backend.db.models.bank import Question as DBQuestion, CompletedSubQuestion
 from backend.api.models.user import (
     User,
@@ -21,10 +21,16 @@ from backend.api.models.user import (
     FeedBack,
     ClassData,
     Assignment,
+    ReviewQuestion,
+    TeacherClassData,
     JoinClassRequest,
+    ReviewSubQuestion,
+    StudentPerformance,
     CreateClassRequest,
+    KickStudentRequest,
     UserRegisterRequest,
     SubmitAnswerRequest,
+    AssignmentReviewData,
     ResetPasswordRequest,
     CreateAssignmentRequest,
     AssignAssignmentRequest,
@@ -38,6 +44,7 @@ from backend.exceptions.user import (
     UsernameAlreadyExists,
     UserEmailAlreadyExists,
     ClassEnterCodeIncorrect,
+    AssignmentAlreadyAssignedToClass,
 )
 
 
@@ -268,6 +275,44 @@ async def submit_answer(
     )
 
 
+@router.get("/questions", response_model=List[Question])
+async def get_questions(
+    current_user: User = Depends(get_current_user),
+):
+    """Get all questions created by the current user.
+
+    Args:
+        current_user (User): Current user from the token.
+
+    Returns:
+        List[Question]: A list of questions that the user has created.
+    """
+    questions = await question_manager.get_questions_by_uploader_id(current_user.id)
+    return [
+        Question(
+            id=question.id,
+            name=question.name,
+            source=question.source,
+            is_audited=question.is_audited,
+            is_deleted=question.is_deleted,
+            sub_questions=[
+                SubQuestion(
+                    id=sub_question.id,
+                    description=sub_question.description,
+                    answer=sub_question.answer,
+                    concept=sub_question.concept,
+                    process=sub_question.process,
+                    keywords=sub_question.keywords,
+                    options=sub_question.options,
+                    image_id=sub_question.image_id,
+                )
+                for sub_question in question.sub_questions
+            ],
+        )
+        for question in questions
+    ]
+
+
 @router.get("/sub-questions/completed", response_model=List[SubQuestion])
 async def get_completed_sub_questions(
     assignment_id: Optional[int] = None,
@@ -337,14 +382,14 @@ async def get_completed_questions(
     for question_id, sub_questions in questions_sub_questions.items():
         new_sub_questions: Dict[int, CompletedSubQuestion] = {}
         for sub_question in sub_questions:
-            if sub_question.id not in new_sub_questions:
-                new_sub_questions[sub_question.id] = sub_question
+            if sub_question.sub_question_id not in new_sub_questions:
+                new_sub_questions[sub_question.sub_question_id] = sub_question
             else:
                 if (
-                    new_sub_questions[sub_question.id].created_at
+                    new_sub_questions[sub_question.sub_question_id].created_at
                     < sub_question.created_at
                 ):
-                    new_sub_questions[sub_question.id] = sub_question
+                    new_sub_questions[sub_question.sub_question_id] = sub_question
         questions_sub_questions[question_id] = list(new_sub_questions.values())
 
     return [
@@ -427,6 +472,40 @@ async def get_completed_question(
         source=completed_sub_questions[0].sub_question.question.source,
         sub_questions=list(sub_questions.values()),
     )
+
+
+@router.get("/assignment/image/get", response_class=FileResponse)
+async def get_assignment_image(
+    assignment_id: int, current_user: User = Depends(get_current_user)
+):
+    """Get the image of an assignment
+
+    Args:
+        assignment_id (int): The id of the assignment to get the image of
+        current_user (User, optional): The user who requested the image. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: No assignment with id found
+        HTTPException: No image found
+
+    Returns:
+        FileResponse: The image file
+    """
+    try:
+        image = await user_manager.get_assignment_image(
+            assignment_id=assignment_id, user_id=current_user.id
+        )
+    except AssignmentIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No assignment with id {assignment_id} found!",
+        )
+    if image is None:
+        raise HTTPException(
+            status_code=status.HTTP_204_NO_CONTENT,
+            detail="No image found!",
+        )
+    return FileResponse(image.path)
 
 
 @router.post("/password/reset")
@@ -541,7 +620,7 @@ async def join_class(
         if not class_:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Class not found",
+                detail="Invalid class name or enter code",
             )
 
         joint_class = await user_manager.join_class(
@@ -565,15 +644,10 @@ async def join_class(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User is already in a class or trying to join their own class",
         )
-    except ClassIdInvalid:
+    except (ClassIdInvalid, ClassEnterCodeIncorrect):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Class not found",
-        )
-    except ClassEnterCodeIncorrect:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect enter code",
+            detail="Invalid class name or enter code",
         )
     except HTTPException:
         raise
@@ -584,38 +658,46 @@ async def join_class(
         )
 
 
-@router.post("/class/leave")
-async def leave_class(
+@router.post("/class/kick")
+async def kick_student(
+    request: KickStudentRequest,
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Leave the current class.
+    """Kick a student from a class.
 
     Args:
+        request (KickStudentRequest): The request containing student_id
         current_user (User): Current user from the token.
 
     Raises:
-        HTTPException: If the user is not in a class.
+        HTTPException: If the user does not have permission to kick this student.
 
     Returns:
         JSONResponse: A JSON response indicating the success of leaving the class.
     """
     try:
-        await user_manager.leave_class(
-            user_id=current_user.id,
-        )
-        return JSONResponse(
-            content={"message": "Left class successfully"},
-            status_code=status.HTTP_200_OK,
+        is_my_student_symbol = await user_manager.is_my_student(
+            teacher_id=current_user.id, student_id=request.student_id
         )
     except UserIdInvalid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    except PermissionError:
+
+    if not is_my_student_symbol:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not in a class",
+            detail="User does not have permission to kick this student",
+        )
+
+    try:
+        await user_manager.leave_class(
+            user_id=request.student_id,
+        )
+        return JSONResponse(
+            content={"message": "Kicked student from class successfully"},
+            status_code=status.HTTP_200_OK,
         )
     except Exception as e:
         raise HTTPException(
@@ -718,6 +800,11 @@ async def assign_assignment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Class not found",
         )
+    except AssignmentAlreadyAssignedToClass:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Assignment already assigned to class",
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -735,7 +822,6 @@ async def get_assignments(
 
     Args:
         current_user (User): Current user from the token.
-
     """
     try:
         if current_user.permission == Permission.TEACHER:
@@ -786,20 +872,165 @@ async def get_assignments(
         )
 
 
-@router.get("/class/data", response_model=ClassData)
-async def get_class_data(
-    current_user: Annotated[User, Depends(get_current_user)],
+@router.get("/assignment/review", response_model=AssignmentReviewData)
+async def get_assignment_review(
+    assignment_id: int,
+    class_id: int,
+    current_user: User = Depends(get_current_user),
 ):
-    """Get the data for the current user's class.
+    """Get the review data for an assignment.
 
     Args:
+        assignment_id (int): The ID of the assignment.
+        class_id (int): The ID of the class.
+        current_user (User): Current user from the token.
+
+    Raises:
+        HTTPException: If the user does not have permission to view this assignment.
+        HTTPException: If the class is not found.
+        HTTPException: If an error occurs.
+
+    Returns:
+        AssignmentReviewData: The review data for the assignment.
+    """
+    if current_user.permission == Permission.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to view this assignment",
+        )
+
+    try:
+        assignment = await user_manager.get_assignments_by_id_and_class_id(
+            assignment_id=assignment_id, class_id=class_id, user_id=current_user.id
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to view this assignment",
+        )
+    except ClassIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Class not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred: {str(e)}",
+        )
+
+    if assignment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found",
+        )
+
+    student_to_completed_sub_question: Dict[int, Dict[int, CompletedSubQuestion]] = {}
+    # student_id -> sub_question_id -> completed_sub_question
+
+    students = {student.id: student for student in assignment.class_.students}
+    for student_id in students.keys():
+        completed_sub_questions = await user_manager.get_completed_sub_questions(
+            user_id=student_id,
+            assignment_id=assignment.assignment.id,
+        )
+        student_to_completed_sub_question[student_id] = {
+            completed_sub_question.sub_question_id: completed_sub_question
+            for completed_sub_question in completed_sub_questions
+        }
+
+    return AssignmentReviewData(
+        title=assignment.assignment.name,
+        questions=[
+            ReviewQuestion(
+                id=question.id,
+                name=question.name,
+                source=question.source,
+                sub_questions=[
+                    ReviewSubQuestion(
+                        id=sub_question.id,
+                        description=sub_question.description,
+                        answer=sub_question.answer,
+                        concept=sub_question.concept,
+                        process=sub_question.process,
+                        keywords=sub_question.keywords,
+                        options=sub_question.options,
+                        image_id=sub_question.image_id,
+                        student_performances=[
+                            StudentPerformance(
+                                user=User(
+                                    id=student.id,
+                                    name=student.username,
+                                    display_name=student.display_name,
+                                    email=student.email,
+                                    permission=student.permission,
+                                ),
+                                answer=student_to_completed_sub_question[student.id][
+                                    sub_question.id
+                                ].answer
+                                if (
+                                    student.id in student_to_completed_sub_question
+                                    and sub_question.id
+                                    in student_to_completed_sub_question[student.id]
+                                )
+                                else None,
+                                performance=student_to_completed_sub_question[
+                                    student.id
+                                ][sub_question.id].performance
+                                if (
+                                    student.id in student_to_completed_sub_question
+                                    and sub_question.id
+                                    in student_to_completed_sub_question[student.id]
+                                )
+                                else None,
+                                feedback=student_to_completed_sub_question[student.id][
+                                    sub_question.id
+                                ].feedback
+                                if (
+                                    student.id in student_to_completed_sub_question
+                                    and sub_question.id
+                                    in student_to_completed_sub_question[student.id]
+                                )
+                                else None,
+                                date=student_to_completed_sub_question[student.id][
+                                    sub_question.id
+                                ].created_at
+                                if (
+                                    student.id in student_to_completed_sub_question
+                                    and sub_question.id
+                                    in student_to_completed_sub_question[student.id]
+                                )
+                                else None,
+                            )
+                            for student in students.values()
+                        ],
+                    )
+                    for sub_question in question.sub_questions
+                ],
+            )
+            for question in assignment.assignment.questions
+        ],
+    )
+
+
+@router.get("/class/data", response_model=Union[ClassData, TeacherClassData])
+async def get_class_data(
+    class_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Get the data for the current user's class.
+    If the user is a teacher, get the teacher class data.
+    If the user is a student, get the student class data.
+
+    Args:
+        class_id (Optional[int]): The ID of the class to get data for. Only when the user is a teacher the parameter is required.
         current_user (User): Current user from the token.
 
     Raises:
         HTTPException: If the user is not found or is not enrolled in a class.
 
     Returns:
-        ClassData: The data for the current user's class.
+        Union[ClassData, TeacherClassData]: The data for the current user's class.
     """
     user = await user_manager.get_user_by_id(user_id=current_user.id)
 
@@ -809,59 +1040,107 @@ async def get_class_data(
             detail="User not found",
         )
 
-    if user.enrolled_class_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User is not enrolled in a class",
+    if user.permission == Permission.TEACHER:
+        if class_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Class ID is required when the user is a teacher",
+            )
+
+        class_ = await user_manager.get_class_by_id(class_id=class_id)
+        if class_ is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Class not found",
+            )
+
+        assignments = await user_manager.get_assignments_by_class_id(
+            class_id=class_id, user_id=user.id
         )
 
-    class_ = await user_manager.get_class_by_id(class_id=user.enrolled_class_id)
-    assert class_ is not None
-
-    teacher = await user_manager.get_user_by_id(user_id=class_.teacher_id)
-    assert teacher is not None
-
-    class_assignments = await user_manager.get_assignments_by_class_id(
-        class_id=class_.id, user_id=user.id
-    )
-
-    to_do_assignments = []
-    done_assignments = []
-    for class_assignment in class_assignments:
-        if await user_manager.is_assignment_completed(
-            user_id=user.id, assignment_id=class_assignment.assignment.id
-        ):
-            done_assignments.append(
-                Assignment(
-                    id=class_assignment.assignment.id,
-                    name=class_assignment.assignment.name,
-                    description=class_assignment.assignment.description,
-                    teacher_id=class_assignment.assignment.teacher_id,
-                    question_ids=[
-                        question.id
-                        for question in class_assignment.assignment.questions
-                    ],
-                    due_date=class_assignment.due_date,
+        return TeacherClassData(
+            class_id=class_id,
+            name=class_.name,
+            enter_code=class_.enter_code,
+            students=[
+                User(
+                    id=student.id,
+                    name=student.username,
+                    display_name=student.display_name,
+                    email=student.email,
+                    permission=student.permission,
                 )
-            )
-        else:
-            to_do_assignments.append(
+                for student in class_.students
+            ],
+            assignments=[
                 Assignment(
-                    id=class_assignment.assignment.id,
-                    name=class_assignment.assignment.name,
-                    description=class_assignment.assignment.description,
-                    teacher_id=class_assignment.assignment.teacher_id,
+                    id=assignment.assignment.id,
+                    name=assignment.assignment.name,
+                    description=assignment.assignment.description,
+                    teacher_id=assignment.assignment.teacher_id,
                     question_ids=[
-                        question.id
-                        for question in class_assignment.assignment.questions
+                        question.id for question in assignment.assignment.questions
                     ],
-                    due_date=class_assignment.due_date,
+                    due_date=assignment.due_date,
                 )
+                for assignment in assignments
+            ],
+            performances=await analyzer.get_class_performances(class_id=class_id),
+        )
+    else:
+        if user.enrolled_class_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User is not enrolled in a class",
             )
 
-    return ClassData(
-        class_name=class_.name,
-        teacher_name=teacher.display_name,
-        to_do_assignments=to_do_assignments,
-        done_assignments=done_assignments,
-    )
+        class_ = await user_manager.get_class_by_id(class_id=user.enrolled_class_id)
+        assert class_ is not None
+
+        teacher = await user_manager.get_user_by_id(user_id=class_.teacher_id)
+        assert teacher is not None
+
+        class_assignments = await user_manager.get_assignments_by_class_id(
+            class_id=class_.id, user_id=user.id
+        )
+
+        to_do_assignments = []
+        done_assignments = []
+        for class_assignment in class_assignments:
+            if await user_manager.is_assignment_completed(
+                user_id=user.id, assignment_id=class_assignment.assignment.id
+            ):
+                done_assignments.append(
+                    Assignment(
+                        id=class_assignment.assignment.id,
+                        name=class_assignment.assignment.name,
+                        description=class_assignment.assignment.description,
+                        teacher_id=class_assignment.assignment.teacher_id,
+                        question_ids=[
+                            question.id
+                            for question in class_assignment.assignment.questions
+                        ],
+                        due_date=class_assignment.due_date,
+                    )
+                )
+            else:
+                to_do_assignments.append(
+                    Assignment(
+                        id=class_assignment.assignment.id,
+                        name=class_assignment.assignment.name,
+                        description=class_assignment.assignment.description,
+                        teacher_id=class_assignment.assignment.teacher_id,
+                        question_ids=[
+                            question.id
+                            for question in class_assignment.assignment.questions
+                        ],
+                        due_date=class_assignment.due_date,
+                    )
+                )
+
+        return ClassData(
+            class_name=class_.name,
+            teacher_name=teacher.display_name,
+            to_do_assignments=to_do_assignments,
+            done_assignments=done_assignments,
+        )

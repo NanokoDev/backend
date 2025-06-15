@@ -1,14 +1,18 @@
+import pytz
 import datetime
 import numpy as np
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from backend.db.user import UserManager
+from backend.exceptions.user import ClassIdInvalid
 from backend.db.models.user import CompletedSubQuestion
+from backend.types.question import ConceptType, ProcessType
 from backend.services.analyzer.models import (
     Trend,
     Performances,
     PerformancesData,
     PerformanceTrends,
+    PerformanceDateData,
 )
 
 
@@ -175,6 +179,149 @@ class Analyzer:
 
         performance_trends = PerformanceTrends.model_validate(result)
         return performance_trends
+
+    async def get_performance_date_data(
+        self,
+        user_id: int,
+        timedelta: Optional[datetime.timedelta] = None,
+    ) -> PerformanceDateData:
+        """Get the performance date data of a user.
+
+        Args:
+            user_id (int): User ID.
+            timedelta (datetime.timedelta, optional): Time delta to filter the performances. Defaults to None.
+
+        Returns:
+            PerformanceDateData: The performance date data of the user.
+        """
+
+        def _get_average(sub_questions: List[CompletedSubQuestion]) -> float:
+            return round(
+                sum(sub_question.performance.value for sub_question in sub_questions)
+                / len(sub_questions),
+                2,
+            )
+
+        sub_questions = await self.user_manager.get_completed_sub_questions(
+            user_id=user_id
+        )
+        sub_questions = [
+            sub_question
+            for sub_question in sub_questions
+            if timedelta is None
+            or sub_question.created_at.astimezone(datetime.timezone.utc)
+            > datetime.datetime.now(datetime.timezone.utc) - timedelta
+        ]
+
+        dates = []
+        for sub_question in sub_questions:
+            date: datetime.datetime = sub_question.created_at.astimezone(
+                pytz.timezone("Pacific/Auckland")
+            )
+            date = date.replace(hour=0, minute=0, second=0, microsecond=0)
+            if date not in dates:
+                dates.append(date)
+        dates.sort()
+
+        performances = []
+        for i in range(len(dates)):
+            performances.append(
+                _get_average(
+                    [
+                        sub_question
+                        for sub_question in sub_questions
+                        if sub_question.created_at.astimezone(
+                            pytz.timezone("Pacific/Auckland")
+                        ).replace(hour=0, minute=0, second=0, microsecond=0)
+                        == dates[i]
+                    ]
+                )
+            )
+
+        performance_date_data = PerformanceDateData(
+            performances=performances, dates=dates
+        )
+        return performance_date_data
+
+    async def get_class_performances(
+        self,
+        class_id: int,
+    ) -> Performances:
+        """Get the performances of a class.
+
+        Args:
+            class_id (int): Class ID.
+
+        Returns:
+            Performances: The performances of the class.
+        """
+        class_ = await self.user_manager.get_class_by_id(class_id)
+
+        if class_ is None:
+            raise ClassIdInvalid(f"Class with id {class_id} not found!")
+
+        performances = {
+            "operations_on_numbers": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+            "mathematical_relationships": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+            "spatial_properties_and_representations": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+            "location_and_navigation": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+            "measurement": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+            "statistics_and_data": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+            "elements_of_chance": {
+                "formulate": 0,
+                "apply": 0,
+                "explain": 0,
+            },
+        }
+        for student in class_.students:
+            student_performances = (
+                await self.get_recent_average_performances(
+                    user_id=student.id, timedelta=datetime.timedelta(days=30)
+                )
+            ).model_dump()
+            for concept in ConceptType.__members__.keys():
+                for process in ProcessType.__members__.keys():
+                    concept = concept.lower()
+                    process = process.lower()
+                    performances[concept][process] += student_performances[concept][
+                        process
+                    ] / len(class_.students)
+
+        for concept in ConceptType.__members__.keys():
+            for process in ProcessType.__members__.keys():
+                concept = concept.lower()
+                process = process.lower()
+                performances[concept][process] = round(
+                    performances[concept][process], 2
+                )
+
+        performances = Performances.model_validate(performances)
+
+        return performances
 
     async def get_performances(
         self,

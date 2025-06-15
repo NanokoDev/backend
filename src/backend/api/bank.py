@@ -33,7 +33,6 @@ from backend.exceptions.bank import (
     SubQuestionIdInvalid,
 )
 
-
 router = APIRouter(prefix="/bank", tags=["bank"])
 get_current_user = get_current_user_generator(
     OAuth2PasswordBearer(tokenUrl="../user/token")
@@ -58,7 +57,7 @@ async def upload_image(
     Returns:
         JSONResponse: the hash of the uploaded image
     """
-    if current_user.permission < Permission.ADMIN:
+    if current_user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to upload images!",
@@ -104,7 +103,7 @@ async def add_image(
     Returns:
         JSONResponse: The id of the image in the database
     """
-    if current_user.permission < Permission.ADMIN:
+    if current_user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to add images!",
@@ -124,7 +123,7 @@ async def add_image(
         )
     try:
         image = await question_manager.add_image(
-            description=request.description, path=images[0]
+            description=request.description, path=images[0], uploader_id=current_user.id
         )
     except Exception as e:
         raise HTTPException(
@@ -153,10 +152,27 @@ async def set_image_description(
     Returns:
         JSONResponse: The result of the operation
     """
-    if current_user.permission < Permission.ADMIN:
+    if current_user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to set descriptions!",
+        )
+
+    try:
+        if (
+            not await question_manager.is_image_uploader(
+                image_id=request.image_id, user_id=current_user.id
+            )
+            and current_user.permission < Permission.ADMIN
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to set descriptions!",
+            )
+    except ImageIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {request.image_id} found!",
         )
 
     try:
@@ -191,10 +207,27 @@ async def set_image_hash(
     Returns:
         JSONResponse: The result of the operation
     """
-    if current_user.permission < Permission.ADMIN:
+    if current_user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to set hashes!",
+        )
+
+    try:
+        if (
+            not await question_manager.is_image_uploader(
+                image_id=request.image_id, user_id=current_user.id
+            )
+            and current_user.permission < Permission.ADMIN
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to set hashes!",
+            )
+    except ImageIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No image with id {request.image_id} found!",
         )
 
     image_paths = list(config.image_store_path.glob(f"{request.hash}.*"))
@@ -236,12 +269,6 @@ async def get_image_description(
     Returns:
         JSONResponse: The description of the image
     """
-    if current_user.permission < Permission.STUDENT:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to get images!",
-        )
-
     image = await question_manager.get_image(image_id)
     if image is None:
         raise HTTPException(
@@ -290,7 +317,7 @@ async def add_question(
     Returns:
         JSONResponse: The id of the question in the database
     """
-    if current_user.permission < Permission.ADMIN:
+    if current_user.permission < Permission.TEACHER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to add questions!",
@@ -310,7 +337,9 @@ async def add_question(
             )
         )
 
-    question_ = await question_manager.add_question(question.name, question.source)
+    question_ = await question_manager.add_question(
+        question.name, question.source, current_user.id
+    )
 
     try:
         await question_manager.set_question(
@@ -654,7 +683,7 @@ async def delete_sub_question_image(
 @router.get("/question/get", response_model=List[Question])
 async def get_questions(
     question_ids: Optional[List[int]] = Query(None),
-    name: Optional[str] = None,
+    keyword: Optional[str] = None,
     source: Optional[str] = None,
     concept: Optional[ConceptType] = None,
     process: Optional[ProcessType] = None,
@@ -664,7 +693,7 @@ async def get_questions(
 
     Args:
         question_ids (Optional[List[int]], optional): The question ids of the questions. Defaults to None.
-        name (Optional[str], optional): The name of the question. Defaults to None.
+        keyword (Optional[str], optional): The keyword to search in question name or subquestion descriptions. Defaults to None.
         source (Optional[str], optional): The source of the question. Defaults to None.
         concept (Optional[ConceptType], optional): The concept of questions. Defaults to None.
         process (Optional[ProcessType], optional): The process of questions. Defaults to None.
@@ -717,7 +746,7 @@ async def get_questions(
         return questions_
     else:
         questions = await question_manager.get_question_by_values(
-            name=name,
+            keyword=keyword,
             source=source,
             concept=concept,
             process=process,

@@ -527,8 +527,8 @@ def test_join_class(client, student_token, teacher_token, admin_token, class_id)
             "Authorization": f"Bearer {admin_token}"
         },  # use admin because the student is already in the class
     )
-    assert response.status_code == 400, (
-        f"Failed to get 400 bad request: {response.content}"
+    assert response.status_code == 404, (
+        f"Failed to get 404 not found: {response.content}"
     )
 
     # Unexpected cases
@@ -707,6 +707,93 @@ def test_get_assignments(
     )
 
 
+def test_get_assignment_review(
+    client, student_token, teacher_token, assignment_id, class_id
+):
+    """Test the /api/v1/user/assignment/review endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        teacher_token (str): The teacher token
+        assignment_id (int): The assignment id
+        class_id (int): The class id
+    """
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/assignment/review",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+        params={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+        },
+    )
+    assert response.status_code == 200, (
+        f"Failed to get assignment review: {response.content}"
+    )
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/assignment/review",
+        headers={"Authorization": f"Bearer {student_token}"},
+        params={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+        },
+    )
+    assert response.status_code == 403, (
+        f"Failed to get 403 forbidden: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/assignment/review",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+        params={
+            "assignment_id": 11111111,  # Invalid assignment id
+            "class_id": class_id,
+        },
+    )
+    assert response.status_code == 404, (
+        f"Failed to get 404 not found: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/assignment/review",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+        params={
+            "assignment_id": assignment_id,
+            "class_id": 11111111,  # Invalid class id
+        },
+    )
+    assert response.status_code == 404, (
+        f"Failed to get 404 not found: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/assignment/review",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+        params={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+        },
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/assignment/review",
+        params={
+            "assignment_id": assignment_id,
+            "class_id": class_id,
+        },
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )
+
+
 def test_submit(
     client,
     student_token,
@@ -810,6 +897,61 @@ def test_submit(
     )
 
 
+def test_get_questions(client, student_token, admin_token, teacher_token):
+    """Test the /api/v1/user/questions endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        admin_token (str): The admin token
+        teacher_token (str): The teacher token
+    """
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/questions",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, f"Failed to get questions: {response.content}"
+    assert len(response.json()) > 0, (
+        f"Failed to get the correct number of questions: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/questions",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+    )
+    assert response.status_code == 200, f"Failed to get questions: {response.content}"
+    assert len(response.json()) == 0, (
+        f"Failed to get the correct number of questions: {response.content}"
+    )
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/questions",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 200, f"Failed to get questions: {response.content}"
+    assert len(response.json()) == 0, (
+        f"Failed to get the correct number of questions: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/questions",
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/questions",
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorized: {response.content}"
+    )
+
+
 def test_reset_password(client):
     """Test the /api/v1/user/password/reset endpoint
 
@@ -895,13 +1037,8 @@ def test_reset_password(client):
     )
 
 
-def test_leave_class(client):
-    """Test the /api/v1/user/class/leave endpoint
-
-    Args:
-        client (TestClient): The test client
-    """
-    # Register a new student and a teacher for testing
+def test_kick_student(client):
+    """Test the /api/v1/user/class/kick endpoint"""
     response = client.post(
         "/api/v1/user/register",
         json={
@@ -915,6 +1052,7 @@ def test_leave_class(client):
     assert response.status_code == 200, (
         f"Failed to register leave student: {response.content}"
     )
+    student_id = response.json()["id"]
     response = client.post(
         "/api/v1/user/token",
         headers={
@@ -944,6 +1082,7 @@ def test_leave_class(client):
     assert response.status_code == 200, (
         f"Failed to register leave teacher: {response.content}"
     )
+    teacher_id = response.json()["id"]
     response = client.post(
         "/api/v1/user/token",
         headers={
@@ -960,7 +1099,6 @@ def test_leave_class(client):
     )
     teacher_token = response.json()["access_token"]
 
-    # Create a class for the teacher
     response = client.post(
         "/api/v1/user/class/create",
         json={
@@ -974,7 +1112,6 @@ def test_leave_class(client):
     )
     class_name = response.json()["name"]
 
-    # Join the class as a student
     response = client.post(
         "/api/v1/user/class/join",
         json={"enter_code": "leave_code", "class_name": class_name},
@@ -984,45 +1121,41 @@ def test_leave_class(client):
         f"Failed to join class as leave student: {response.content}"
     )
 
-    # Leave the class as a student
-    # Expected cases
     response = client.post(
-        "/api/v1/user/class/leave",
-        headers={"Authorization": f"Bearer {student_token}"},
+        "/api/v1/user/class/kick",
+        json={"student_id": student_id},
+        headers={"Authorization": f"Bearer {teacher_token}"},
     )
-    assert response.status_code == 200, (
-        f"Failed to leave class as leave student: {response.content}"
-    )
+    assert response.status_code == 200, f"Failed to kick student: {response.content}"
 
     # Boundary cases
     response = client.post(
-        "/api/v1/user/class/leave",
+        "/api/v1/user/class/kick",
+        json={"student_id": teacher_id},
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert response.status_code == 403, (
         f"Failed to get 403 forbidden: {response.content}"
-    )  # the teacher is not enrolled in a class, so cannot leave
+    )  # the teacher is not enrolled in a class, so cannot kick
 
     response = client.post(
-        "/api/v1/user/class/leave",
+        "/api/v1/user/class/kick",
+        json={"student_id": student_id},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, (
         f"Failed to get 403 forbidden: {response.content}"
-    )  # the student is already left the class, so cannot leave again
+    )  # the student is already kicked, so cannot kick again
 
     # Unexpected cases
     response = client.get(
-        "/api/v1/user/class/leave",
+        "/api/v1/user/class/kick",
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 405, (
         f"Failed to get 405 method not allowed: {response.content}"
     )
-    response = client.post(
-        "/api/v1/user/class/leave",
-        # Missing Authorization header
-    )
+    response = client.post("/api/v1/user/class/kick")
     assert response.status_code == 401, (
         f"Failed to get 401 unauthorised: {response.content}"
     )
@@ -1343,6 +1476,63 @@ def test_get_completed_question(
     )
 
 
+def test_get_assignment_image(client, student_token, assignment_id, teacher_token):
+    """Test the /api/v1/user/assignment/image/get endpoint
+
+    Args:
+        client (TestClient): The test client
+        student_token (str): The student token
+        assignment_id (int): The assignment id
+        teacher_token (str): The teacher token
+    """
+    # Expected cases
+    response = client.get(
+        "/api/v1/user/assignment/image/get",
+        params={"assignment_id": assignment_id},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 204, (
+        f"Failed to get assignment image: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/assignment/image/get",
+        params={"assignment_id": assignment_id},
+        headers={"Authorization": f"Bearer {teacher_token}"},
+    )
+    assert response.status_code == 204, (
+        f"Failed to get assignment image: {response.content}"
+    )
+
+    # Boundary cases
+    response = client.get(
+        "/api/v1/user/assignment/image/get",
+        params={"assignment_id": 99999999},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 404, (
+        f"Should fail with invalid assignment ID: {response.content}"
+    )
+
+    # Unexpected cases
+    response = client.post(
+        "/api/v1/user/assignment/image/get",
+        params={"assignment_id": assignment_id},
+        headers={"Authorization": f"Bearer {student_token}"},
+    )
+    assert response.status_code == 405, (
+        f"Failed to get 405 method not allowed: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/assignment/image/get",
+        params={"assignment_id": assignment_id},
+    )
+    assert response.status_code == 401, (
+        f"Failed to get 401 unauthorised: {response.content}"
+    )
+
+
 def test_get_class_data(
     client,
     student_token,
@@ -1369,7 +1559,6 @@ def test_get_class_data(
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 200, f"Failed to get class data: {response.content}"
-
     class_data = response.json()
     assert "class_name" in class_data, f"Should include class_name: {response.content}"
     assert "teacher_name" in class_data, (
@@ -1391,7 +1580,6 @@ def test_get_class_data(
         if assignment["id"] == assignment_id:
             found_assignment = assignment
             break
-
     assert found_assignment is not None, (
         f"Assignment should be found: {response.content}"
     )
@@ -1400,6 +1588,23 @@ def test_get_class_data(
     )
     assert "question_ids" in found_assignment, (
         f"Assignment should include question_ids: {response.content}"
+    )
+
+    response = client.get(
+        "/api/v1/user/class/data",
+        headers={"Authorization": f"Bearer {teacher_token}"},
+        params={"class_id": class_id},
+    )
+    assert response.status_code == 200, f"Failed to get class data: {response.content}"
+    class_data = response.json()
+    assert "name" in class_data, f"Should include name: {response.content}"
+    assert "enter_code" in class_data, f"Should include enter_code: {response.content}"
+    assert "students" in class_data, f"Should include students: {response.content}"
+    assert "assignments" in class_data, (
+        f"Should include assignments: {response.content}"
+    )
+    assert "performances" in class_data, (
+        f"Should include performances: {response.content}"
     )
 
     # Boundary cases
@@ -1413,10 +1618,11 @@ def test_get_class_data(
 
     response = client.get(
         "/api/v1/user/class/data",
+        params={"class_id": 99999999},
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert response.status_code == 404, (
-        f"Should fail when teacher is not enrolled in a class: {response.content}"
+        f"Should fail with invalid class id: {response.content}"
     )
 
     # Unexpected cases

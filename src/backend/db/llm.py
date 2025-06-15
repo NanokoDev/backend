@@ -58,18 +58,27 @@ class LLMManager:
                         "role": "system",
                         "content": (
                             "You are a math teacher who excels in instructing Year 9-10 students about numeracy. "
-                            "You will be given a sub-question (from a math question), a student's answer, and the correct answer. "
+                            "You will be given a sub-question (from a math question), the sub-question's process, a student's answer, and the correct answer. "
                             "Your task is to provide feedback on the student's answer, including a comment and a performance rating (0-4). "
                             "The performance rating is as follows: "
                             "0: Not Started, 1: Attempted, 2: Familiar, 3: Proficient, 4: Mastered. "
                             "Please provide a detailed comment and a performance rating based on the student's answer, "
-                            "and convert it into the given structure."
+                            "and convert it into the given structure.\n"
+                            "Note the following:\n"
+                            "1. Your comment will be shown to the student, so please use simple language and avoid using complex terms to ensure the student understands.\n"
+                            "2. There will be different processes for different sub-questions. "
+                            "Usually, `Formulate` sub-questions will be the simplest (as it's usually a multiple choice question, but note that there will be some that are not). "
+                            "If the student answered correctly, please give them a performance rating of 4. "
+                            "`Apply` sub-questions will require the student to apply the formula to the given values. "
+                            "Therefore, not only the correct answer is required, but also the correct process to get the answer. "
+                            "`Explain` sub-questions will require the student to explain how to get the answer with reference to the given context."
                         ),
                     },
                     {
                         "role": "user",
                         "content": (
                             f"Sub-question: {description}\n"
+                            f"Sub-question's process: {sub_question.process.name.lower().capitalize()}\n"
                             f"Student's answer: {answer}\n"
                             f"Correct answer: {judgement}"
                         ),

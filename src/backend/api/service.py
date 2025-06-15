@@ -1,19 +1,21 @@
+import random
 import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import APIRouter, HTTPException, Depends, status
 
-from backend.db import user_manager
 from backend.types.user import Permission
-from backend.services.analyzer import Analyzer
-from backend.api.models.service import Overview
+from backend.db import user_manager, analyzer
+from backend.db.models.user import User as DBUser
 from backend.exceptions.user import UserIdInvalid
 from backend.api.models.user import User, Assignment
 from backend.api.base import get_current_user_generator
+from backend.api.models.service import Overview, TeacherOverview, ClassCard
 from backend.services.analyzer.models import (
     Performances,
     PerformancesData,
     PerformanceTrends,
+    PerformanceDateData,
 )
 
 
@@ -21,7 +23,6 @@ router = APIRouter(prefix="/service", tags=["service"])
 get_current_user = get_current_user_generator(
     OAuth2PasswordBearer(tokenUrl="../user/token")
 )
-analyzer = Analyzer(user_manager=user_manager)
 
 
 @router.get("/performances", response_model=PerformancesData)
@@ -356,10 +357,70 @@ async def get_performance_trends(
         )
 
 
-@router.get("/overview", response_model=Overview)
-async def get_overview(
-    current_user: User = Depends(get_current_user),
+@router.get("/performances/date", response_model=PerformanceDateData)
+async def get_performance_date_data(
+    user_id: int,
+    start_time: Optional[datetime.datetime] = None,
+    user: User = Depends(get_current_user),
 ):
+    """Get the performance date data of a user.
+
+    Args:
+        user_id (int): The id of the user to get the performance date data for.
+        start_time (Optional[datetime.datetime], optional): The start time to get the performance date data from. Defaults to None.
+        user (User, optional): The user object. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: 403 forbidden if the user does not have permission.
+        HTTPException: 404 not found if the user is not found.
+        HTTPException: 500 internal server error if there is an unexpected error.
+
+    Returns:
+        PerformanceDateData: The performance date data of the user.
+    """
+
+    if user.permission < Permission.TEACHER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this resource.",
+        )
+
+    try:
+        if not await user_manager.is_my_student(teacher_id=user.id, student_id=user_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this resource.",
+            )
+    except UserIdInvalid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User not found: {user_id}",
+        )
+
+    try:
+        timedelta = (
+            datetime.datetime.now(datetime.timezone.utc) - start_time
+            if start_time is not None
+            else None
+        )
+        performance_date_data = await analyzer.get_performance_date_data(
+            user_id=user_id, timedelta=timedelta
+        )
+        return performance_date_data
+    except TypeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Start time requires timezone information",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}",
+        )
+
+
+@router.get("/overview", response_model=Overview)
+async def get_overview(current_user: User = Depends(get_current_user)):
     """Get the overview of the current user.
 
     Args:
@@ -413,4 +474,87 @@ async def get_overview(
         display_name=user.display_name,
         total_question_number=len(completed_sub_questions),
         performances=performances,
+    )
+
+
+@router.get("/overview/teacher", response_model=TeacherOverview)
+async def get_teacher_overview(current_user: User = Depends(get_current_user)):
+    """Get the overview of the current user.
+
+    Args:
+        current_user (User, optional): Current user from the token. Defaults to Depends(get_current_user).
+
+    Raises:
+        HTTPException: If the user is not found or is not a teacher.
+
+    Returns:
+        TeacherOverview: The overview of the current user.
+    """
+    user = await user_manager.get_user_by_id(user_id=current_user.id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if user.permission < Permission.TEACHER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this resource.",
+        )
+
+    classes = await user_manager.get_teaching_classes(user.id)
+    class_cards: List[ClassCard] = []
+    students: List[DBUser] = []
+
+    for class_ in classes:
+        class_cards.append(
+            ClassCard(
+                class_id=class_.id,
+                name=class_.name,
+                student_number=len(class_.students),
+                assignments=[
+                    Assignment(
+                        id=class_assignment.assignment.id,
+                        name=class_assignment.assignment.name,
+                        description=class_assignment.assignment.description,
+                        teacher_id=class_assignment.assignment.teacher_id,
+                        question_ids=[
+                            question.id
+                            for question in class_assignment.assignment.questions
+                        ],
+                        due_date=class_assignment.due_date,
+                    )
+                    for class_assignment in class_.class_assignments
+                ],
+            )
+        )
+        students.extend(class_.students)
+
+    assignments = await user_manager.get_assignments_by_teacher_id(user.id)
+
+    return TeacherOverview(
+        classes=class_cards,
+        assignments=[
+            Assignment(
+                id=assignment.id,
+                name=assignment.name,
+                description=assignment.description,
+                teacher_id=assignment.teacher_id,
+                question_ids=[question.id for question in assignment.questions],
+            )
+            for assignment in assignments
+        ],
+        students=[
+            User(
+                id=student.id,
+                name=student.username,
+                display_name=student.display_name,
+                email=student.email,
+                permission=student.permission,
+            )
+            for student in (
+                random.sample(students, k=5) if len(students) > 5 else students
+            )
+        ],
     )

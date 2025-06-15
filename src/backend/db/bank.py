@@ -1,9 +1,12 @@
 from pathlib import Path
+from sqlalchemy import or_
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from typing import Optional, Union, List
 
+from backend.db.models.user import User
 from backend.db.base import DatabaseManager
+from backend.exceptions.user import UserIdInvalid
 from backend.types.question import ConceptType, ProcessType
 from backend.db.models.bank import Image, SubQuestion, Question
 from backend.exceptions.bank import (
@@ -19,19 +22,29 @@ class QuestionManager:
     def __init__(self, database_manager: DatabaseManager):
         self._Session = database_manager.Session
 
-    async def add_image(self, description: str, path: Union[str, Path]) -> Image:
+    async def add_image(
+        self, description: str, path: Union[str, Path], uploader_id: int
+    ) -> Image:
         """Add an image to the database
 
         Args:
             description (str): The description of the image
             path (Union[str, Path]): The path to the image file
+            uploader_id (int): The ID of the user who uploaded the image
 
         Returns:
             Image: The image object that was added to the database
         """
-        image = Image(description=description, path=str(path))
         async with self._Session() as session:
             async with session.begin():
+                user_result = await session.execute(
+                    select(User).filter(User.id == uploader_id)
+                )
+                user = user_result.scalars().first()
+                image = Image(
+                    description=description, path=str(path), uploader_id=uploader_id
+                )
+                image.uploader = user
                 session.add(image)
                 # session.begin().close will do session.commit() or rollback automatically
         return image
@@ -76,21 +89,38 @@ class QuestionManager:
                 session.add(sub_question)
         return sub_question
 
-    async def add_question(self, name: str, source: str) -> Question:
+    async def add_question(self, name: str, source: str, uploader_id: int) -> Question:
         """Add a question to the database
 
         Args:
             name (str): The name of the question
             source (str): The source of the question
+            uploader_id (int): The ID of the user who uploaded the question
+
+        Raises:
+            UserIdInvalid: If the user ID is invalid
 
         Returns:
             Question: The question object that was added to the database
         """
-        question = Question(
-            name=name, source=source, is_audited=False, is_deleted=False
-        )
+
         async with self._Session() as session:
             async with session.begin():
+                user_result = await session.execute(
+                    select(User).filter(User.id == uploader_id)
+                )
+                user = user_result.scalars().first()
+                if user is None:
+                    raise UserIdInvalid(uploader_id)
+
+                question = Question(
+                    name=name,
+                    source=source,
+                    is_audited=False,
+                    is_deleted=False,
+                    uploader_id=uploader_id,
+                )
+                question.uploader = user
                 session.add(question)
         return question
 
@@ -344,6 +374,28 @@ class QuestionManager:
 
                 question.name = name
 
+    async def is_image_uploader(self, image_id: int, user_id: int) -> bool:
+        """Check if a user is the uploader of an image
+
+        Args:
+            image_id (int): The ID of the image
+            user_id (int): The ID of the user
+
+        Raises:
+            ImageIdInvalid: If the image ID is invalid
+
+        Returns:
+            bool: True if the user is the uploader of the image, False otherwise
+        """
+        async with self._Session() as session:
+            image_result = await session.execute(
+                select(Image).filter(Image.id == image_id)
+            )
+            image = image_result.scalars().first()
+            if image is None:
+                raise ImageIdInvalid(image_id)
+            return image.uploader_id == user_id
+
     async def set_image_description(self, image_id: int, description: str) -> None:
         """Set the description for an image
 
@@ -440,9 +492,26 @@ class QuestionManager:
             )
             return question_result.unique().scalars().all()
 
+    async def get_questions_by_uploader_id(self, uploader_id: int) -> List[Question]:
+        """Get questions by the uploader's ID
+
+        Args:
+            uploader_id (int): The ID of the uploader
+
+        Returns:
+            List[Question]: A list of question objects that match the uploader's ID
+        """
+        async with self._Session() as session:
+            question_result = await session.execute(
+                select(Question)
+                .options(joinedload(Question.sub_questions))
+                .filter(Question.uploader_id == uploader_id)
+            )
+            return question_result.unique().scalars().all()
+
     async def get_question_by_values(
         self,
-        name: Optional[str] = None,
+        keyword: Optional[str] = None,
         source: Optional[str] = None,
         concept: Optional[ConceptType] = None,
         process: Optional[ProcessType] = None,
@@ -450,7 +519,7 @@ class QuestionManager:
         """Get questions by their values
 
         Args:
-            name (Optional[str]): The name of the question
+            keyword (Optional[str]): The keyword to search in question name or subquestion descriptions
             source (Optional[str]): The source of the question
             concept (Optional[ConceptType]): Subquestion's concept type
             process (Optional[ProcessType]): Subquestion's process type
@@ -460,8 +529,15 @@ class QuestionManager:
         """
         async with self._Session() as session:
             filters = []
-            if name is not None:
-                filters.append(Question.name == name)
+            if keyword is not None:
+                filters.append(
+                    or_(
+                        Question.name.icontains(keyword),
+                        Question.sub_questions.any(
+                            SubQuestion.description.icontains(keyword)
+                        ),
+                    )
+                )
             if source is not None:
                 filters.append(Question.source == source)
             if concept is not None:

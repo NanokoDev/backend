@@ -117,7 +117,6 @@ class QuestionManager:
                     name=name,
                     source=source,
                     is_audited=False,
-                    is_deleted=False,
                     uploader_id=uploader_id,
                 )
                 question.uploader = user
@@ -592,7 +591,7 @@ class QuestionManager:
                 if question is None:
                     raise QuestionIdInvalid(question_id)
 
-                if question.is_audited or question.is_deleted:
+                if question.is_audited:
                     return False
 
                 question.is_audited = True
@@ -608,8 +607,7 @@ class QuestionManager:
             QuestionIdInvalid: If the question ID is invalid
 
         Returns:
-            bool: True if the question was deleted, False otherwise.\n
-            If the question is already deleted, it will return False.
+            bool: True if the question was deleted, False if the question was not found.
         """
         async with self._Session() as session:
             async with session.begin():
@@ -621,9 +619,6 @@ class QuestionManager:
                 if question is None:
                     raise QuestionIdInvalid(question_id)
 
-                if question.is_deleted:
-                    return False
-
-                question.is_deleted = True
+                await session.delete(question)
 
             return True

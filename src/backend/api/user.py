@@ -294,7 +294,6 @@ async def get_questions(
             name=question.name,
             source=question.source,
             is_audited=question.is_audited,
-            is_deleted=question.is_deleted,
             sub_questions=[
                 SubQuestion(
                     id=sub_question.id,

@@ -48,13 +48,13 @@ class SubQuestion(Base):
     # ["keyword1", "keyword2", ...]
 
     image_id = mapped_column(ForeignKey("image.id"), nullable=True)
-    question_id = mapped_column(ForeignKey("question.id"))
+    question_id = mapped_column(ForeignKey("question.id", ondelete="CASCADE"))
 
     image: Mapped[Optional["Image"]] = relationship(back_populates="sub_questions")
     question: Mapped["Question"] = relationship(back_populates="sub_questions")
 
     completed_sub_questions: Mapped[List[CompletedSubQuestion]] = relationship(
-        back_populates="sub_question"
+        back_populates="sub_question", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -71,12 +71,13 @@ class Question(Base):
     source: Mapped[str] = mapped_column(String(100))
     uploader_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
     is_audited: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=Boolean(False))
 
     uploader: Mapped[User] = relationship(
         "User", back_populates="questions", foreign_keys=[uploader_id]
     )
-    sub_questions: Mapped[List[SubQuestion]] = relationship(back_populates="question")
+    sub_questions: Mapped[List[SubQuestion]] = relationship(
+        back_populates="question", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
-        return f"Question(id={self.id!r}, name={self.name!r}, source={self.source!r}, is_audited={self.is_audited!r}, is_deleted={self.is_deleted!r})"
+        return f"Question(id={self.id!r}, name={self.name!r}, source={self.source!r}, is_audited={self.is_audited!r})"

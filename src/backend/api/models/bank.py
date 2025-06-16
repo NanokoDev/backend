@@ -30,7 +30,6 @@ class Question(BaseModel):
     name: str
     source: str
     is_audited: Optional[bool] = None
-    is_deleted: Optional[bool] = None
     sub_questions: List[SubQuestion]
 
 

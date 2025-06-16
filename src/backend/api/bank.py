@@ -721,7 +721,6 @@ async def get_questions(
                 name=question.name,
                 source=question.source,
                 is_audited=question.is_audited,
-                is_deleted=question.is_deleted,
                 sub_questions=[
                     SubQuestion(
                         id=sub_question.id,
@@ -740,7 +739,7 @@ async def get_questions(
             # Apply permission-based filtering
             if current_user.permission >= Permission.ADMIN:
                 questions_.append(question_)
-            elif not question.is_deleted and question.is_audited:
+            elif question.is_audited:
                 questions_.append(question_)
 
         return questions_
@@ -757,7 +756,6 @@ async def get_questions(
                 name=question.name,
                 source=question.source,
                 is_audited=question.is_audited,
-                is_deleted=question.is_deleted,
                 sub_questions=[
                     SubQuestion(
                         id=sub_question.id,
@@ -777,11 +775,7 @@ async def get_questions(
         if current_user.permission >= Permission.ADMIN:
             return questions
 
-        return [
-            question
-            for question in questions_
-            if question.is_audited and not question.is_deleted
-        ]
+        return [question for question in questions_ if question.is_audited]
 
 
 @router.post("/question/approve")
@@ -821,9 +815,7 @@ async def approve_question(
 
     if result:
         return JSONResponse({"msg": f"Approved question {question_id} successfully"})
-    return JSONResponse(
-        {"msg": f"Question {question_id} has already been approved or deleted"}
-    )
+    return JSONResponse({"msg": f"Question {question_id} has already been approved"})
 
 
 @router.post("/question/set/name")
@@ -897,4 +889,4 @@ async def delete_question(
 
     if result:
         return JSONResponse({"msg": f"Deleted question {question_id} successfully"})
-    return JSONResponse({"msg": f"Question {question_id} has already been deleted"})
+    return JSONResponse({"msg": f"Question {question_id} not found"})

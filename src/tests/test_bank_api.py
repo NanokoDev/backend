@@ -190,6 +190,29 @@ def question_id2(client, image_id, admin_token):
     return response.json()["question_id"]
 
 
+@pytest.fixture(scope="module")
+def sub_question_id2(client, question_id2, admin_token):
+    """Get the ID of a sub-question from question_id2
+
+    Args:
+        client (TestClient): the test client
+        question_id2 (int): the ID of the second question
+        admin_token (str): the admin token
+
+    Returns:
+        int: the ID of the sub-question
+    """
+    response = client.get(
+        "/api/v1/bank/question/get",
+        params={"question_ids": [question_id2]},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200, response.content
+    assert len(response.json()) > 0, response.content
+    assert len(response.json()[0]["sub_questions"]) > 0, response.content
+    return response.json()[0]["sub_questions"][0]["id"]
+
+
 def test_image_upload(client, test_image_path, student_token, admin_token):
     """Test the image upload endpoint
 
@@ -638,6 +661,13 @@ def test_question_delete(client, question_id, student_token, admin_token):
     # Boundary cases
     response = client.delete(
         "/api/v1/bank/question/delete",
+        params={"question_id": question_id},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 404, response.content
+
+    response = client.delete(
+        "/api/v1/bank/question/delete",
         params={"question_id": 100},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -659,13 +689,13 @@ def test_question_delete(client, question_id, student_token, admin_token):
 
     response = client.delete(
         "/api/v1/bank/question/delete",
-        params={"question_id": question_id},
+        params={"question_id": 9999},
     )
     assert response.status_code == 401, response.content
 
     response = client.delete(
         "/api/v1/bank/question/delete",
-        params={"question_id": question_id},
+        params={"question_id": 9999},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, response.content
@@ -673,7 +703,7 @@ def test_question_delete(client, question_id, student_token, admin_token):
     # Unexpected cases
     response = client.get(
         "/api/v1/bank/question/delete",
-        params={"question_id": question_id},
+        params={"question_id": 9999},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 405, response.content
@@ -806,25 +836,28 @@ def test_image_set_hash(
 
 
 def test_sub_question_set_description(
-    client, sub_question_id, student_token, admin_token
+    client, sub_question_id2, student_token, admin_token
 ):
     """Test the sub-question set description endpoint
 
     Args:
         client (TestClient): the test client
-        sub_question_id (int): the ID of the sub-question
+        sub_question_id2 (int): the ID of the sub-question
         student_token (str): the student token
         admin_token (str): the admin token
     """
     # Expected cases
     response = client.post(
         "/api/v1/bank/sub-question/set/description",
-        json={"sub_question_id": sub_question_id, "description": "Updated description"},
+        json={
+            "sub_question_id": sub_question_id2,
+            "description": "Updated sub-question description",
+        },
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
     assert (
-        response.json()["msg"] == f"Set description of sub-question {sub_question_id}"
+        response.json()["msg"] == f"Set description of sub-question {sub_question_id2}"
     )
 
     # Boundary cases
@@ -838,14 +871,20 @@ def test_sub_question_set_description(
 
     response = client.post(
         "/api/v1/bank/sub-question/set/description",
-        json={"sub_question_id": sub_question_id, "description": "Updated description"},
+        json={
+            "sub_question_id": sub_question_id2,
+            "description": "Updated description",
+        },
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, response.content
 
     response = client.post(
         "/api/v1/bank/sub-question/set/description",
-        json={"sub_question_id": sub_question_id, "description": "Updated description"},
+        json={
+            "sub_question_id": sub_question_id2,
+            "description": "Updated description",
+        },
     )
     assert response.status_code == 401, response.content
 
@@ -862,29 +901,29 @@ def test_sub_question_set_description(
 
     response = client.post(
         "/api/v1/bank/sub-question/set/description",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
-def test_sub_question_set_options(client, sub_question_id, student_token, admin_token):
+def test_sub_question_set_options(client, sub_question_id2, student_token, admin_token):
     """Test the sub-question set options endpoint
 
     Args:
         client (TestClient): the test client
-        sub_question_id (int): the ID of the sub-question
+        sub_question_id2 (int): the ID of the sub-question
         student_token (str): the student token
         admin_token (str): the admin token
     """
     # Expected cases
     response = client.post(
         "/api/v1/bank/sub-question/set/options",
-        json={"sub_question_id": sub_question_id, "options": ["Option 1", "Option 2"]},
+        json={"sub_question_id": sub_question_id2, "options": ["Option 1", "Option 2"]},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set options of sub-question {sub_question_id}"
+    assert response.json()["msg"] == f"Set options of sub-question {sub_question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -897,14 +936,14 @@ def test_sub_question_set_options(client, sub_question_id, student_token, admin_
 
     response = client.post(
         "/api/v1/bank/sub-question/set/options",
-        json={"sub_question_id": sub_question_id, "options": ["Option 1", "Option 2"]},
+        json={"sub_question_id": sub_question_id2, "options": ["Option 1", "Option 2"]},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, response.content
 
     response = client.post(
         "/api/v1/bank/sub-question/set/options",
-        json={"sub_question_id": sub_question_id, "options": ["Option 1", "Option 2"]},
+        json={"sub_question_id": sub_question_id2, "options": ["Option 1", "Option 2"]},
     )
     assert response.status_code == 401, response.content
 
@@ -921,29 +960,29 @@ def test_sub_question_set_options(client, sub_question_id, student_token, admin_
 
     response = client.post(
         "/api/v1/bank/sub-question/set/options",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
-def test_sub_question_set_answer(client, sub_question_id, student_token, admin_token):
+def test_sub_question_set_answer(client, sub_question_id2, student_token, admin_token):
     """Test the sub-question set answer endpoint
 
     Args:
         client (TestClient): the test client
-        sub_question_id (int): the ID of the sub-question
+        sub_question_id2 (int): the ID of the sub-question
         student_token (str): the student token
         admin_token (str): the admin token
     """
     # Expected cases
     response = client.post(
         "/api/v1/bank/sub-question/set/answer",
-        json={"sub_question_id": sub_question_id, "answer": "Updated answer"},
+        json={"sub_question_id": sub_question_id2, "answer": "Updated answer"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set answer of sub-question {sub_question_id}"
+    assert response.json()["msg"] == f"Set answer of sub-question {sub_question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -956,14 +995,14 @@ def test_sub_question_set_answer(client, sub_question_id, student_token, admin_t
 
     response = client.post(
         "/api/v1/bank/sub-question/set/answer",
-        json={"sub_question_id": sub_question_id, "answer": "Updated answer"},
+        json={"sub_question_id": sub_question_id2, "answer": "Updated answer"},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, response.content
 
     response = client.post(
         "/api/v1/bank/sub-question/set/answer",
-        json={"sub_question_id": sub_question_id, "answer": "Updated answer"},
+        json={"sub_question_id": sub_question_id2, "answer": "Updated answer"},
     )
     assert response.status_code == 401, response.content
 
@@ -977,13 +1016,13 @@ def test_sub_question_set_answer(client, sub_question_id, student_token, admin_t
 
     response = client.post(
         "/api/v1/bank/sub-question/set/answer",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
-def test_sub_question_set_concept(client, sub_question_id, student_token, admin_token):
+def test_sub_question_set_concept(client, sub_question_id2, student_token, admin_token):
     """Test the sub-question set concept endpoint
 
     Args:
@@ -996,13 +1035,13 @@ def test_sub_question_set_concept(client, sub_question_id, student_token, admin_
     response = client.post(
         "/api/v1/bank/sub-question/set/concept",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "concept": ConceptType.MEASUREMENT.value,
         },
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set concept of sub-question {sub_question_id}"
+    assert response.json()["msg"] == f"Set concept of sub-question {sub_question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -1016,7 +1055,7 @@ def test_sub_question_set_concept(client, sub_question_id, student_token, admin_
     response = client.post(
         "/api/v1/bank/sub-question/set/concept",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "concept": ConceptType.MEASUREMENT.value,
         },
         headers={"Authorization": f"Bearer {student_token}"},
@@ -1026,7 +1065,7 @@ def test_sub_question_set_concept(client, sub_question_id, student_token, admin_
     response = client.post(
         "/api/v1/bank/sub-question/set/concept",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "concept": ConceptType.MEASUREMENT.value,
         },
     )
@@ -1045,13 +1084,13 @@ def test_sub_question_set_concept(client, sub_question_id, student_token, admin_
 
     response = client.post(
         "/api/v1/bank/sub-question/set/concept",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
-def test_sub_question_set_process(client, sub_question_id, student_token, admin_token):
+def test_sub_question_set_process(client, sub_question_id2, student_token, admin_token):
     """Test the sub-question set process endpoint
 
     Args:
@@ -1064,13 +1103,13 @@ def test_sub_question_set_process(client, sub_question_id, student_token, admin_
     response = client.post(
         "/api/v1/bank/sub-question/set/process",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "process": ProcessType.FORMULATE.value,
         },
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set process of sub-question {sub_question_id}"
+    assert response.json()["msg"] == f"Set process of sub-question {sub_question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -1084,7 +1123,7 @@ def test_sub_question_set_process(client, sub_question_id, student_token, admin_
     response = client.post(
         "/api/v1/bank/sub-question/set/process",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "process": ProcessType.FORMULATE.value,
         },
         headers={"Authorization": f"Bearer {student_token}"},
@@ -1094,7 +1133,7 @@ def test_sub_question_set_process(client, sub_question_id, student_token, admin_
     response = client.post(
         "/api/v1/bank/sub-question/set/process",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "process": ProcessType.FORMULATE.value,
         },
     )
@@ -1113,13 +1152,15 @@ def test_sub_question_set_process(client, sub_question_id, student_token, admin_
 
     response = client.post(
         "/api/v1/bank/sub-question/set/process",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
-def test_sub_question_set_keywords(client, sub_question_id, student_token, admin_token):
+def test_sub_question_set_keywords(
+    client, sub_question_id2, student_token, admin_token
+):
     """Test the sub-question set keywords endpoint
 
     Args:
@@ -1132,13 +1173,13 @@ def test_sub_question_set_keywords(client, sub_question_id, student_token, admin
     response = client.post(
         "/api/v1/bank/sub-question/set/keywords",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "keywords": ["Keyword 1", "Keyword 2"],
         },
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set keywords of sub-question {sub_question_id}"
+    assert response.json()["msg"] == f"Set keywords of sub-question {sub_question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -1152,7 +1193,7 @@ def test_sub_question_set_keywords(client, sub_question_id, student_token, admin
     response = client.post(
         "/api/v1/bank/sub-question/set/keywords",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "keywords": ["Keyword 1", "Keyword 2"],
         },
         headers={"Authorization": f"Bearer {student_token}"},
@@ -1162,7 +1203,7 @@ def test_sub_question_set_keywords(client, sub_question_id, student_token, admin
     response = client.post(
         "/api/v1/bank/sub-question/set/keywords",
         json={
-            "sub_question_id": sub_question_id,
+            "sub_question_id": sub_question_id2,
             "keywords": ["Keyword 1", "Keyword 2"],
         },
     )
@@ -1181,14 +1222,14 @@ def test_sub_question_set_keywords(client, sub_question_id, student_token, admin
 
     response = client.post(
         "/api/v1/bank/sub-question/set/keywords",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
 def test_sub_question_set_image(
-    client, sub_question_id, image_id, student_token, admin_token
+    client, sub_question_id2, image_id, student_token, admin_token
 ):
     """Test the sub-question set image endpoint
 
@@ -1202,11 +1243,11 @@ def test_sub_question_set_image(
     # Expected cases
     response = client.post(
         "/api/v1/bank/sub-question/set/image",
-        json={"sub_question_id": sub_question_id, "image_id": image_id},
+        json={"sub_question_id": sub_question_id2, "image_id": image_id},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set image of sub-question {sub_question_id}"
+    assert response.json()["msg"] == f"Set image of sub-question {sub_question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -1219,7 +1260,7 @@ def test_sub_question_set_image(
 
     response = client.post(
         "/api/v1/bank/sub-question/set/image",
-        json={"sub_question_id": sub_question_id, "image_id": 100},
+        json={"sub_question_id": sub_question_id2, "image_id": 100},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 404, response.content
@@ -1227,14 +1268,14 @@ def test_sub_question_set_image(
 
     response = client.post(
         "/api/v1/bank/sub-question/set/image",
-        json={"sub_question_id": sub_question_id, "image_id": image_id},
+        json={"sub_question_id": sub_question_id2, "image_id": image_id},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, response.content
 
     response = client.post(
         "/api/v1/bank/sub-question/set/image",
-        json={"sub_question_id": sub_question_id, "image_id": image_id},
+        json={"sub_question_id": sub_question_id2, "image_id": image_id},
     )
     assert response.status_code == 401, response.content
 
@@ -1248,13 +1289,13 @@ def test_sub_question_set_image(
 
     response = client.post(
         "/api/v1/bank/sub-question/set/image",
-        json={"sub_question_id": sub_question_id},
+        json={"sub_question_id": sub_question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content
 
 
-def test_question_set_name(client, question_id, student_token, admin_token):
+def test_question_set_name(client, question_id2, student_token, admin_token):
     """Test the question set name endpoint
 
     Args:
@@ -1266,11 +1307,11 @@ def test_question_set_name(client, question_id, student_token, admin_token):
     # Expected cases
     response = client.post(
         "/api/v1/bank/question/set/name",
-        json={"question_id": question_id, "name": "Updated Test Question"},
+        json={"question_id": question_id2, "name": "Updated Test Question"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200, response.content
-    assert response.json()["msg"] == f"Set name of question {question_id}"
+    assert response.json()["msg"] == f"Set name of question {question_id2}"
 
     # Boundary cases
     response = client.post(
@@ -1283,14 +1324,14 @@ def test_question_set_name(client, question_id, student_token, admin_token):
 
     response = client.post(
         "/api/v1/bank/question/set/name",
-        json={"question_id": question_id, "name": "Updated Test Question"},
+        json={"question_id": question_id2, "name": "Updated Test Question"},
         headers={"Authorization": f"Bearer {student_token}"},
     )
     assert response.status_code == 403, response.content
 
     response = client.post(
         "/api/v1/bank/question/set/name",
-        json={"question_id": question_id, "name": "Updated Test Question"},
+        json={"question_id": question_id2, "name": "Updated Test Question"},
     )
     assert response.status_code == 401, response.content
 
@@ -1304,7 +1345,7 @@ def test_question_set_name(client, question_id, student_token, admin_token):
 
     response = client.post(
         "/api/v1/bank/question/set/name",
-        json={"question_id": question_id},
+        json={"question_id": question_id2},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 422, response.content

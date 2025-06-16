@@ -19,7 +19,9 @@ class CompletedSubQuestion(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"))
-    sub_question_id: Mapped[int] = mapped_column(ForeignKey("sub_question.id"))
+    sub_question_id: Mapped[int] = mapped_column(
+        ForeignKey("sub_question.id", ondelete="CASCADE")
+    )
     assignment_id: Mapped[int] = mapped_column(ForeignKey("assignment.id"))
     answer: Mapped[str] = mapped_column(String(1000))
     performance: Mapped[Performance] = mapped_column(

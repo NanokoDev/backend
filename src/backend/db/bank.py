@@ -41,8 +41,12 @@ class QuestionManager:
                     select(User).filter(User.id == uploader_id)
                 )
                 user = user_result.scalars().first()
+
+                if isinstance(path, Path):
+                    path = path.as_posix()
+
                 image = Image(
-                    description=description, path=str(path), uploader_id=uploader_id
+                    description=description, path=path, uploader_id=uploader_id
                 )
                 image.uploader = user
                 session.add(image)
